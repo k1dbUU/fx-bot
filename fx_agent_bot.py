@@ -23,7 +23,13 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from metaapi_cloud_sdk import MetaApi
-from metaapi_cloud_sdk.clients.metaApi.tradeException import TradeException
+try:
+    from metaapi_cloud_sdk.clients.metaApi.tradeException import TradeException
+except ImportError:
+    try:
+        from metaapi_cloud_sdk import TradeException
+    except ImportError:
+        TradeException = Exception
 
 # ── CONFIG ────────────────────────────────────────────────────────
 META_API_TOKEN  = os.environ["META_API_TOKEN"]

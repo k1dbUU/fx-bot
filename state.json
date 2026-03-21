@@ -1,1 +1,33 @@
-{"date":"2000-01-01","daily_losses":{"GOLD#":0,"EURUSD":0,"GBPUSD":0},"swept_high":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"swept_low":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_london":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_ny_am":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_ny_pm":{"GOLD#":false,"EURUSD":false,"GBPUSD":false}}
+{
+  "date": "2026-03-21",
+  "daily_losses": {
+    "GOLD#": 0,
+    "EURUSD": 0,
+    "GBPUSD": 0
+  },
+  "swept_high": {
+    "GOLD#": false,
+    "EURUSD": false,
+    "GBPUSD": false
+  },
+  "swept_low": {
+    "GOLD#": false,
+    "EURUSD": false,
+    "GBPUSD": false
+  },
+  "sb_london": {
+    "GOLD#": false,
+    "EURUSD": false,
+    "GBPUSD": false
+  },
+  "sb_ny_am": {
+    "GOLD#": false,
+    "EURUSD": false,
+    "GBPUSD": false
+  },
+  "sb_ny_pm": {
+    "GOLD#": false,
+    "EURUSD": false,
+    "GBPUSD": false
+  }
+}

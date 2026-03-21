@@ -1,0 +1,54 @@
+name: FX Agent — 24/7
+
+# Runs every 5 min during NY session (Mon-Thu, 13:00-19:55 UTC = 15:00-21:55 SAST)
+# Also fires at UTC 10:00 to catch NY AM Silver Bullet window
+# Repo must be PUBLIC — GitHub Actions on public repos = unlimited free minutes
+
+on:
+  schedule:
+    - cron: "*/5 13-19 * * 1-4"
+    - cron: "0 10 * * 1-4"
+  workflow_dispatch:
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install MetaAPI SDK
+        run: pip install metaapi-cloud-sdk
+
+      - name: Init state.json if missing
+        run: |
+          if [ ! -f state.json ]; then
+            echo '{"date":"2000-01-01","daily_losses":{"GOLD#":0,"EURUSD":0,"GBPUSD":0},"swept_high":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"swept_low":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_london":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_ny_am":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_ny_pm":{"GOLD#":false,"EURUSD":false,"GBPUSD":false}}' > state.json
+            echo "state.json created fresh"
+          else
+            echo "state.json exists — keeping"
+          fi
+
+      - name: Run FX Agent
+        env:
+          META_API_TOKEN:  ${{ secrets.META_API_TOKEN }}
+          META_ACCOUNT_ID: ${{ secrets.META_ACCOUNT_ID }}
+        run: python fx_agent_bot.py
+
+      - name: Save state back to repo
+        if: always()
+        run: |
+          git config user.name  "FX-Agent-Bot"
+          git config user.email "bot@fxagent.local"
+          git add state.json || true
+          git diff --staged --quiet || git commit -m "state: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push || true

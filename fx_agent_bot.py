@@ -252,21 +252,29 @@ async def run_bot():
     log.info("[META] Waiting for broker connection...")
     await acct.wait_connected()
 
-    conn = acct.get_rpc_connection()
-    await conn.connect()
-
-    try:
-        await asyncio.wait_for(
-            conn.wait_synchronized(),
-            timeout=SYNC_TIMEOUT_SECONDS
-        )
-    except asyncio.TimeoutError:
-        log.error(f"[META] Sync timeout after {SYNC_TIMEOUT_SECONDS}s — aborting")
-        await conn.close()
-        save_state(state)
-        return
-
-    log.info("[META] Connected and synchronized ✅")
+    conn = None
+    for attempt in range(1, 4):
+        try:
+            log.info(f"[META] Connection attempt {attempt}/3...")
+            conn = acct.get_rpc_connection()
+            await conn.connect()
+            await asyncio.wait_for(conn.wait_synchronized(), timeout=SYNC_TIMEOUT_SECONDS)
+            log.info("[META] Connected and synchronized ✅")
+            break
+        except asyncio.TimeoutError:
+            log.warning(f"[META] Attempt {attempt} timed out")
+            try: await conn.close()
+            except: pass
+            conn = None
+            if attempt == 3: log.error("[META] All attempts failed — aborting"); save_state(state); return
+            await asyncio.sleep(15)
+        except Exception as e:
+            log.warning(f"[META] Attempt {attempt} error: {e}")
+            try: await conn.close()
+            except: pass
+            conn = None
+            if attempt == 3: log.error("[META] All attempts failed — aborting"); save_state(state); return
+            await asyncio.sleep(15)
 
     acct_info  = await conn.get_account_information()
     balance    = acct_info["balance"]
@@ -309,11 +317,12 @@ async def run_bot():
 
         try:
             now   = datetime.now(timezone.utc)
-            c_h4  = await conn.get_historical_candles(sym, "4h",  now - timedelta(hours=60),  15)
-            c_h1  = await conn.get_historical_candles(sym, "1h",  now - timedelta(hours=10),  10)
-            c_m15 = await conn.get_historical_candles(sym, "15m", now - timedelta(hours=2),    8)
-            c_m5  = await conn.get_historical_candles(sym, "5m",  now - timedelta(hours=2),   30)
-            c_d1  = await conn.get_historical_candles(sym, "1d",  now - timedelta(days=3),     3)
+            # get_historical_candles must be called on account object, not connection
+            c_h4  = await acct.get_historical_candles(symbol=sym, timeframe="4h",  start_time=now - timedelta(hours=60),  limit=15)
+            c_h1  = await acct.get_historical_candles(symbol=sym, timeframe="1h",  start_time=now - timedelta(hours=10),  limit=10)
+            c_m15 = await acct.get_historical_candles(symbol=sym, timeframe="15m", start_time=now - timedelta(hours=2),   limit=8)
+            c_m5  = await acct.get_historical_candles(symbol=sym, timeframe="5m",  start_time=now - timedelta(hours=2),   limit=30)
+            c_d1  = await acct.get_historical_candles(symbol=sym, timeframe="1d",  start_time=now - timedelta(days=3),    limit=3)
             log.info(f"[{sym}] Candles H4:{len(c_h4)} H1:{len(c_h1)} M15:{len(c_m15)} M5:{len(c_m5)} D1:{len(c_d1)}")
         except Exception as e:
             log.warning(f"[{sym}] Candle error: {e} — skip")

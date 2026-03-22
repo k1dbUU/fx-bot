@@ -45,6 +45,7 @@ jobs:
           GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
           GMAIL_TO:           ${{ secrets.GMAIL_TO }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GH_PAT:             ${{ secrets.GH_PAT }}
           OPERATOR_ALIAS:     K-I-D-B-U-U
         run: python nucleus_supervisor.py
 
@@ -53,7 +54,7 @@ jobs:
         run: |
           git config user.name  "nucleus-bot"
           git config user.email "bot@nucleus.local"
-          git add cortex_log.json NUCLEUS_MEMORY.json shopify_build_log.json nucleus_command.json || true
+          git add cortex_log.json NUCLEUS_MEMORY.json shopify_build_log.json nucleus_command.json nucleus_task_log.json nucleus_heal_log.json nucleus_email_log.json || true
           git diff --staged --quiet || git commit -m "supe: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git pull --rebase origin main || true
           git push || true

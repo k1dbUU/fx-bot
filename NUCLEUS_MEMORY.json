@@ -70,9 +70,18 @@
     "github": "$0 \u2014 unlimited on public repo",
     "total": "~$4.14 / ~R76.59"
   },
-  "lessons": [],
-  "last_lesson_utc": null,
+  "lessons": [
+    {
+      "timestamp": "2026-03-22T22:30:59.485673+00:00",
+      "lesson": "Implement job throttling or batching logic to prevent excessive skipping (consistently 50-60 jobs skipped per run) which indicates inefficient resource allocation or overly restrictive filtering criteria."
+    }
+  ],
+  "last_lesson_utc": "2026-03-22T22:30:59.485685+00:00",
   "evolution_log": [
+    {
+      "timestamp": "2026-03-22T22:30:59.485688+00:00",
+      "event": "Lesson by Supervisor v5.2"
+    },
     {
       "timestamp": "2026-03-22T16:00:00+00:00",
       "event": "Nucleus v4.0 \u2014 Supervisor independent 5min cycle, Shopify build started, March deadline encoded"

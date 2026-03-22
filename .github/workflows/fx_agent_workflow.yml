@@ -3,6 +3,7 @@ name: FX Agent — 24/7
 # Runs every 5 min during NY session (Mon-Thu, 13:00-19:55 UTC = 15:00-21:55 SAST)
 # Also fires at UTC 10:00 to catch NY AM Silver Bullet window
 # Repo must be PUBLIC — GitHub Actions on public repos = unlimited free minutes
+# v5.2: status.json (heartbeat) committed alongside state.json
 
 on:
   schedule:
@@ -44,11 +45,11 @@ jobs:
           META_ACCOUNT_ID: ${{ secrets.META_ACCOUNT_ID }}
         run: python fx_agent_bot.py
 
-      - name: Save state back to repo
+      - name: Save state and heartbeat to repo
         if: always()
         run: |
           git config user.name  "FX-Agent-Bot"
           git config user.email "bot@fxagent.local"
-          git add state.json || true
-          git diff --staged --quiet || git commit -m "state: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git add state.json status.json || true
+          git diff --staged --quiet || git commit -m "heartbeat: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push || true

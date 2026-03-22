@@ -108,6 +108,7 @@ jobs:
         run: |
           git config user.name  "nucleus-bot"
           git config user.email "bot@nucleus.local"
-          git add applied_jobs.json bounced_emails.json job_queue.json job_agent_log.txt job_agent_status.json || true
+          git add applied_jobs.json bounced_emails.json job_agent_log.txt job_agent_status.json || true
           git diff --staged --quiet || git commit -m "jobs: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git pull --rebase origin main || true
           git push || true

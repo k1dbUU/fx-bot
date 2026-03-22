@@ -1,5 +1,17 @@
 [
   {
+    "timestamp": "2026-03-22T15:58:20.849935+00:00",
+    "sast": "2026-03-22 17:58 SAST",
+    "run": "13",
+    "fx_status": "completed",
+    "balance_zar": 1623.25,
+    "in_session": false,
+    "shopify_pct": 40,
+    "shopify_phase": "Inventory management",
+    "days_to_deadline": 9,
+    "full": "Nucleus v4.0 \u2014 2026-03-22 17:58 SAST\nFX: Run #13 | COMPLETED | ZAR 1623.25 (~$87.74)\n  GOLD#: bid 4497.5 | spread 165pts\n  EURUSD: bid 1.15697 | spread 38pts\n  GBPUSD: bid 1.33388 | spread 76pts\nJobs: 0 sent | 60 skipped\nShopify build: 40% \u2014 Inventory management\nMarch deadline: 9 days remaining\nSession: OFFLINE"
+  },
+  {
     "timestamp": "2026-03-22T15:42:24.175780+00:00",
     "sast": "2026-03-22 17:42 SAST",
     "run": "13",

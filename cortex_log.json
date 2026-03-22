@@ -1,0 +1,11 @@
+[
+  {
+    "timestamp": "2026-03-22T12:47:56.473215+00:00",
+    "sast": "2026-03-22 14:47 SAST",
+    "run": "9",
+    "status": "completed",
+    "balance_zar": 1623.25,
+    "in_session": false,
+    "full": "Run #9 \u2014 2026-03-22 14:47 SAST \u2014 COMPLETED\nBalance: ZAR 1623.25 (~$87.74)\nGOLD#: 4497.5 bid | 165pt spread\nEURUSD: 1.15697 bid | 38pt spread\nGBPUSD: 1.33388 bid | 76pt spread\nSession: OFFLINE \u2014 monitoring"
+  }
+]

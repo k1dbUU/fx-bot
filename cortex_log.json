@@ -1,5 +1,17 @@
 [
   {
+    "run": 41,
+    "sast": "2026-03-23 01:47 SAST",
+    "timestamp": "2026-03-22T23:47:07.991563+00:00",
+    "status": "completed",
+    "balance_zar": 1623.25,
+    "in_session": false,
+    "shopify_pct": 100,
+    "shopify_phase": "Final integration + deploy",
+    "days_to_deadline": 8,
+    "full": "Nucleus v5.2 \u2014 2026-03-23 01:47 SAST | Run #41\nFX: ZAR 1623.25 | OFFLINE\nGOLD# bid 4497.5 | EURUSD 1.15697 | GBPUSD 1.33388\nJobs: 0 sent \u00b7 60 skipped\nShopify: 100% \u2014 Final integration + deploy\nDeadline: 8d remaining"
+  },
+  {
     "run": 40,
     "sast": "2026-03-23 01:21 SAST",
     "timestamp": "2026-03-22T23:21:30.454840+00:00",

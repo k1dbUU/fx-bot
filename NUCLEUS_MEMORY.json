@@ -72,12 +72,20 @@
   },
   "lessons": [
     {
+      "timestamp": "2026-03-22T23:47:10.536013+00:00",
+      "lesson": "Monitor the FX status more closely - the system has been stuck in OFFLINE mode with identical exchange rates across multiple runs, indicating a potential data feed issue that could affect trading decisions."
+    },
+    {
       "timestamp": "2026-03-22T22:30:59.485673+00:00",
       "lesson": "Implement job throttling or batching logic to prevent excessive skipping (consistently 50-60 jobs skipped per run) which indicates inefficient resource allocation or overly restrictive filtering criteria."
     }
   ],
-  "last_lesson_utc": "2026-03-22T22:30:59.485685+00:00",
+  "last_lesson_utc": "2026-03-22T23:47:10.536026+00:00",
   "evolution_log": [
+    {
+      "timestamp": "2026-03-22T23:47:10.536029+00:00",
+      "event": "Lesson by Supervisor v5.2"
+    },
     {
       "timestamp": "2026-03-22T22:30:59.485688+00:00",
       "event": "Lesson by Supervisor v5.2"

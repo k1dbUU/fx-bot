@@ -1,10 +1,10 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  KIDBUU JOB ORCHESTRATOR v5.5                                ║
+║  KIDBUU JOB ORCHESTRATOR v5.6                                ║
 ║  Operator: K-I-D-B-U-U                                       ║
 ║  24/7 on GitHub Actions — no timezone scheduling needed      ║
 ║                                                              ║
-║  v5.5 ARCHITECTURE REBUILD:                                  ║
+║  v5.6 ARCHITECTURE REBUILD:                                  ║
 ║  [NEW-1] Company name extraction is now mandatory —          ║
 ║          no company name = skip. No agency blind posts.      ║
 ║  [NEW-2] Internet scouring: searches web + social for        ║
@@ -327,7 +327,7 @@ Return ONLY valid JSON, no markdown fences:
         }
 
 # ── COMPANY INTELLIGENCE ──────────────────────────────────────────
-# v5.5: Scour the internet for a company's real contact details.
+# v5.6: Scour the internet for a company's real contact details.
 # Returns dict with: domain, emails[], whatsapp[], website
 
 async def scour_company(company_name: str) -> dict:
@@ -534,57 +534,89 @@ def save_whatsapp_leads(company: str, numbers: list, job_title: str):
 def extract_company_from_listing(title: str, snippet: str, url: str) -> str:
     """
     Extract the actual hiring company name from a job listing.
-    Returns company name string, or empty string if not determinable.
-    Skips agency/confidential posts — those can't be directly contacted.
+    v5.6 — handles all DuckDuckGo title formats:
+      "Role | Company", "Company - Role", "Company is Hiring",
+      "Apply at Company", direct domain URLs.
+    Skips agencies, confidential posts, job board domains.
     """
     text = title + " " + snippet
 
-    # Hard skip: agency/confidential — no direct contact possible
+    # Hard skip: agency/confidential
     skip_patterns = [
-        "confidential", "agency", "through a recruiter", "via agency",
-        "staffing", "recruitment agency", "undisclosed", "not disclosed",
+        "confidential", "through a recruiter", "via agency",
+        "recruitment agency", "undisclosed", "not disclosed",
         "our client", "on behalf of"
     ]
     for p in skip_patterns:
         if p in text.lower():
-            log.info(f"[EXTRACT] Skipping — agency/confidential post: '{p}' found")
+            log.info(f"[EXTRACT] Skip — agency/confidential: '{p}'")
             return ""
 
-    # Try to extract from title: "Role at Company", "Company - Role", "Role | Company"
+    # Role words: word-boundary match only (so "DataFlow" != "data")
+    role_words = ['remote', 'entry', 'level', 'data', 'admin', 'clerk',
+                  'specialist', 'assistant', 'support', 'agent', 'officer',
+                  'manager', 'analyst', 'coordinator', 'technician', 'junior']
+    board_names = ['indeed', 'linkedin', 'glassdoor', 'pnet', 'careers24',
+                   'jobmail', 'gumtree', 'monster', 'seek', 'upwork',
+                   'fiverr', 'freelancer', 'reed', 'totaljobs', 'jobsite',
+                   'south africa', 'cape town', 'johannesburg']
+
+    def is_bad_name(name: str) -> bool:
+        n = name.lower()
+        if any(b in n for b in board_names):
+            return True
+        # Word boundary check for role words — "DataFlow" passes, "Data Entry" fails
+        for w in role_words:
+            if re.search(r'\b' + re.escape(w) + r'\b', n):
+                return True
+        return False
+
+    # ── STEP 1: Direct company URL (not a job board) ──────────────
+    dm = re.search(r"https?://(?:www\.)?([^/\s]+)", url)
+    url_domain = dm.group(1).lower() if dm else ""
+    if url_domain and not any(b in url_domain for b in JOB_BOARD_DOMAINS):
+        name = url_domain.split('.')[0].replace('-', ' ').title()
+        if len(name) >= 3 and name.lower() not in ['www', 'app', 'jobs', 'careers', 'hire']:
+            log.info(f"[EXTRACT] From URL: '{name}'")
+            return name
+
+    # ── STEP 2: Title patterns ────────────────────────────────────
     patterns = [
-        r'\bat\s+([A-Z][A-Za-z\s&\.]{2,30}?)(?:\s*[-–|]|$)',
-        r'^([A-Z][A-Za-z\s&\.]{2,30?})\s*[-–|]',
-        r'[-–|]\s*([A-Z][A-Za-z\s&\.]{2,30})$',
-        r'@\s*([A-Z][A-Za-z\s&\.]{2,30})',
+        r'\bat\s+([A-Za-z][A-Za-z0-9\s&\.\-]{2,35}?)(?:\s*[-–|,]|\s+(?:is|for|and)\s|$)',
+        r'[|–—]\s*([A-Za-z][A-Za-z0-9\s&\.]{2,30})(?:\s*$|\s*[|–—])',
+        r'^([A-Za-z][A-Za-z0-9\s&\.\-]{2,30}?)\s*[|–—]',
+        r'\s[-–]\s*([A-Z][A-Za-z0-9][A-Za-z0-9\s&\.]{1,28})\s*$',
+        r'^([A-Z][A-Za-z0-9][A-Za-z0-9&\.\s]{1,28}?)\s+(?:is\s+)?(?:[Hh]iring|[Rr]ecruiting)',
+        r'[Aa]pply\s+(?:at|to)\s+([A-Z][A-Za-z0-9\s&\.\-]{2,30}?)(?:\s+for|\s*$|,)',
+        r'([A-Z][A-Za-z0-9&\.]{2,20}(?:\s[A-Z][A-Za-z0-9&\.]{1,15}){0,2})\s+(?:is\s+)?(?:hiring|recruiting)',
     ]
     for pat in patterns:
         m = re.search(pat, title)
         if m:
-            name = m.group(1).strip()
-            # Sanity check: not a job title word
-            if not any(w in name.lower() for w in ['remote', 'entry', 'level', 'data', 'admin', 'clerk']):
-                return name
-
-    # Try to extract from URL if it's a company domain (not a job board)
-    dm = re.search(r"https?://(?:www\.)?([^/\s]+)", url)
-    if dm:
-        domain = dm.group(1).lower()
-        if not any(b in domain for b in JOB_BOARD_DOMAINS):
-            # Use domain as company name
-            name = domain.split('.')[0].replace('-', ' ').title()
+            name = m.group(1).strip().rstrip('.,- ')
+            if is_bad_name(name) or not (3 <= len(name) <= 50):
+                continue
+            log.info(f"[EXTRACT] From title: '{name}'")
             return name
 
-    # Nothing found
+    # ── STEP 3: Snippet patterns ──────────────────────────────────
+    snippet_pats = [
+        r'[Aa]pply\s+(?:at|to)\s+([A-Z][A-Za-z0-9\s&\.\-]{2,30}?)(?:\s+for|\s*$|,)',
+        r'([A-Z][A-Za-z0-9&\.]{2,20}(?:\s[A-Z][A-Za-z0-9&\.]{1,15}){0,2})\s+(?:is\s+)?(?:hiring|recruiting)',
+        r'[Jj]oin\s+([A-Z][A-Za-z0-9\s&\.]{2,30}?)(?:\s+(?:as|to|and)|$)',
+    ]
+    for pat in snippet_pats:
+        m = re.search(pat, snippet)
+        if m:
+            name = m.group(1).strip()
+            if not is_bad_name(name) and 3 <= len(name) <= 50:
+                log.info(f"[EXTRACT] From snippet: '{name}'")
+                return name
+
+    log.info(f"[SKIP] No company in: '{title[:60]}'")
     return ""
 
-# ── GET COMPANY EMAILS (legacy fallback) ─────────────────────────
-async def get_emails(company: str, domain: str) -> List[str]:
-    """Legacy fallback — used only when scour_company is skipped."""
-    if not domain:
-        return []
-    return [f"hr@{domain}", f"careers@{domain}", f"info@{domain}"]
 
-# ── SEND EMAIL (TO + BCC 2 verified) ─────────────────────────────
 def send(job: Job, email_data: dict, cv: dict) -> bool:
     bounced = set(load_json_file(CONFIG["bounce_file"], []))
 
@@ -671,7 +703,7 @@ async def search(query: str, limit: int = 5) -> list:
 
 async def result_to_job(result: dict) -> Optional[Job]:
     """
-    Full v5.5 pipeline:
+    Full v5.6 pipeline:
     1. Extract company name — skip if agency/unknown
     2. Scour internet for real emails + WhatsApp
     3. SMTP-verify emails — drop confirmed dead ones
@@ -728,7 +760,7 @@ async def result_to_job(result: dict) -> Optional[Job]:
 def write_status(sent: int, skipped: int, error: str = None):
     save_json_file(CONFIG["status_file"], {
         "agent":       "kidbuu_job_agent",
-        "version":     "5.5",
+        "version":     "5.6",
         "last_run":    datetime.now(timezone.utc).isoformat(),
         "sent":        sent,
         "skipped":     skipped,
@@ -755,7 +787,7 @@ class RateTracker:
 # ── MAIN ──────────────────────────────────────────────────────────
 async def run():
     print("═" * 54)
-    print(f"  KIDBUU JOB AGENT v5.5 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"  KIDBUU JOB AGENT v5.6 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("═" * 54)
 
     # Startup checks

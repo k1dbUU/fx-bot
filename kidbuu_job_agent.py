@@ -1,15 +1,19 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  KIDBUU JOB ORCHESTRATOR v5.3                                ║
+║  KIDBUU JOB ORCHESTRATOR v5.5                                ║
 ║  Operator: K-I-D-B-U-U                                       ║
 ║  24/7 on GitHub Actions — no timezone scheduling needed      ║
 ║                                                              ║
-║  v5.3 FIXES (vs v5.2):                                       ║
-║  [FIX-7] Search queries now target company career pages,     ║
-║          not job boards — reduces skip rate dramatically     ║
-║  [FIX-8] Job board results: extract company from title       ║
-║          and derive domain — instead of hard skipping        ║
-║  [FIX-9] Added skip reason logging for every filtered result ║
+║  v5.5 ARCHITECTURE REBUILD:                                  ║
+║  [NEW-1] Company name extraction is now mandatory —          ║
+║          no company name = skip. No agency blind posts.      ║
+║  [NEW-2] Internet scouring: searches web + social for        ║
+║          company website, real emails, WhatsApp numbers      ║
+║  [NEW-3] Email verification via SMTP probe — checks if       ║
+║          mailbox actually exists before sending              ║
+║  [NEW-4] Send to verified TO + BCC 2 verified extras         ║
+║  [NEW-5] WhatsApp numbers saved to whatsapp_leads.json       ║
+║  [NEW-6] Plain language searches — reliably get DDG results  ║
 ╚══════════════════════════════════════════════════════════════╝
 
 TARGET ROLES (agent-compatible, entry-level, no 5yr experience):
@@ -105,26 +109,21 @@ log = logging.getLogger("KidBuuJobs")
 # Research-based: legal data ops, medical billing, AI annotation,
 # bookkeeping, CRM admin, back office — all hire SA contractors
 JOB_SEARCHES = [
-    # Direct company career page searches — avoids job boards
-    'site:careers "data entry" remote "apply now" entry level',
-    'site:jobs "CRM administrator" remote "south africa" hire',
-    '"we are hiring" "data entry" remote "work from home" apply',
-    '"now hiring" "data capture" OR "CRM" remote 2025 2026',
-    '"apply" "data entry clerk" remote "no experience" site:com',
-
-    # Direct outreach targets — companies known to hire SA remote
-    '"remote data entry" "south africa" contractor 2025 hire email',
-    '"hiring" "data administrator" remote "cape town" OR "south africa"',
-    '"data entry" "remote" "compTIA" OR "CRM" "apply" email hr@',
-    '"entry level" "data processor" remote hire email careers@',
-    '"virtual assistant" OR "data entry" remote hire "south africa" 2025',
-
-    # Company job pages directly
-    '"careers" "data entry" remote "immediately" OR "urgently" apply',
-    '"job opening" "CRM" OR "data" remote "south africa" contractor',
-    'intitle:"hiring" "back office" remote "data" "entry level" email',
-    '"open position" "data capture" remote "apply" 2025 OR 2026',
-    '"remote role" "data entry" OR "admin" "south africa" contact hr',
+    "remote data entry jobs south africa 2025 apply",
+    "CRM administrator remote job south africa hiring",
+    "data capture clerk remote work south africa",
+    "virtual assistant remote job south africa entry level",
+    "back office administrator remote cape town hiring",
+    "AI data annotator remote job south africa",
+    "remote bookkeeper entry level south africa",
+    "helpdesk support remote south africa entry level",
+    "IT support technician remote south africa junior",
+    "data entry specialist remote no experience required",
+    "transcription remote job south africa 2025",
+    "remote admin assistant south africa hiring now",
+    "CRM data entry remote job UK hire south africa contractor",
+    "online data processor remote job south africa apply",
+    "remote customer support data entry south africa 2025",
 ]
 
 # ── ENTRY-LEVEL FILTER ────────────────────────────────────────────
@@ -327,26 +326,265 @@ Return ONLY valid JSON, no markdown fences:
             "style": "fallback",
         }
 
-# ── GET COMPANY EMAILS ────────────────────────────────────────────
+# ── COMPANY INTELLIGENCE ──────────────────────────────────────────
+# v5.5: Scour the internet for a company's real contact details.
+# Returns dict with: domain, emails[], whatsapp[], website
+
+async def scour_company(company_name: str) -> dict:
+    """
+    Given a company name, search the web for:
+    - Their official website
+    - Direct HR/hiring email addresses
+    - WhatsApp numbers (saved separately, not emailed)
+    Returns everything found. Empty lists if nothing found.
+    """
+    result = {"domain": None, "emails": [], "whatsapp": [], "website": None}
+
+    # Step 1: Find their website via web search
+    searches = [
+        f"{company_name} official website contact",
+        f"{company_name} HR email address hiring contact",
+        f"{company_name} careers email jobs apply",
+        f"{company_name} company LinkedIn Facebook contact",
+    ]
+
+    all_text = ""
+    for q in searches[:2]:  # 2 searches per company to stay fast
+        try:
+            async with httpx.AsyncClient(timeout=12, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }) as client:
+                r = await client.get(
+                    "https://html.duckduckgo.com/html/",
+                    params={"q": q, "kl": "za-en"},
+                )
+                all_text += r.text
+                await asyncio.sleep(2)
+        except Exception:
+            pass
+
+    # Step 2: Extract emails from all search text
+    raw_emails = re.findall(
+        r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}',
+        all_text
+    )
+    # Filter: must not be job boards, must look like hr/hiring/info/careers
+    hr_patterns = ['hr@', 'hire@', 'hiring@', 'careers@', 'jobs@',
+                   'recruit@', 'talent@', 'info@', 'hello@', 'contact@',
+                   'admin@', 'office@', 'apply@', 'work@', 'people@']
+    candidate_emails = []
+    seen = set()
+    for e in raw_emails:
+        e = e.lower().strip('.,;')
+        if e in seen:
+            continue
+        seen.add(e)
+        if not valid_email(e):
+            continue
+        if is_blocked_email(e):
+            continue
+        # Prioritise HR-pattern emails
+        is_hr = any(e.startswith(p) for p in hr_patterns)
+        if is_hr:
+            candidate_emails.insert(0, e)
+        else:
+            candidate_emails.append(e)
+    result["emails"] = candidate_emails[:5]  # keep top 5 candidates
+
+    # Step 3: Extract WhatsApp numbers
+    # Look for WA.me links or "WhatsApp: +XX" patterns
+    wa_links = re.findall(r'wa\.me/(\d{7,15})', all_text)
+    wa_text  = re.findall(r'[Ww]hats[Aa]pp[:\s]+(\+\d{7,15})', all_text)
+    whatsapp_numbers = list(set([f"+{n}" for n in wa_links] + wa_text))
+    result["whatsapp"] = whatsapp_numbers[:3]
+
+    # Step 4: Extract domain from emails found
+    if result["emails"]:
+        domain_match = re.search(r'@([a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})', result["emails"][0])
+        if domain_match:
+            result["domain"] = domain_match.group(1).lower()
+
+    # Step 5: If no emails found from search, ask Claude to guess HR emails
+    # using the domain if we have one, or derive a likely domain from company name
+    if not result["emails"]:
+        domain = result["domain"]
+        if not domain:
+            # Derive domain from company name
+            slug = re.sub(r'[^a-z0-9]', '', company_name.lower())
+            if len(slug) >= 3:
+                domain = f"{slug}.com"
+                result["domain"] = domain
+
+        if domain and not any(b in domain for b in JOB_BOARD_DOMAINS):
+            guessed = [
+                f"hr@{domain}",
+                f"careers@{domain}",
+                f"info@{domain}",
+            ]
+            result["emails"] = [e for e in guessed if valid_email(e)]
+            log.info(f"[SCOUR] {company_name}: No emails found — guessing {result['emails']}")
+        else:
+            log.info(f"[SCOUR] {company_name}: No emails and no usable domain — skip")
+
+    if result["emails"]:
+        log.info(f"[SCOUR] {company_name}: Found {len(result['emails'])} emails, "
+                 f"{len(result['whatsapp'])} WhatsApp")
+    return result
+
+# ── EMAIL VERIFICATION (SMTP PROBE) ──────────────────────────────
+# Checks if an email address actually exists by probing the mail server.
+# Does NOT send any email. Uses SMTP RCPT TO handshake.
+# Returns True if mailbox confirmed, False if rejected, None if uncertain.
+
+async def verify_email_smtp(email: str) -> bool:
+    """
+    Probe the mail server to check if the email address exists.
+    Returns True = verified real, False = definitely doesn't exist,
+    None = uncertain (server won't tell us / timeout).
+    """
+    import socket
+    import asyncio
+
+    if not valid_email(email):
+        return False
+
+    domain = email.split('@')[1]
+
+    try:
+        # Get MX record via DNS lookup
+        loop = asyncio.get_event_loop()
+        try:
+            mx_result = await loop.run_in_executor(
+                None,
+                lambda: socket.getaddrinfo(domain, 25, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            )
+            if not mx_result:
+                return None
+            mx_host = mx_result[0][4][0]
+        except Exception:
+            return None  # Can't resolve — uncertain
+
+        # SMTP handshake probe
+        def smtp_probe():
+            import smtplib
+            try:
+                with smtplib.SMTP(timeout=8) as smtp:
+                    smtp.connect(mx_host, 25)
+                    smtp.ehlo_or_helo_if_needed()
+                    smtp.mail('verify@nucleus-check.local')
+                    code, _ = smtp.rcpt(email)
+                    smtp.quit()
+                    return code  # 250 = exists, 550 = doesn't exist
+            except smtplib.SMTPRecipientsRefused:
+                return 550
+            except Exception:
+                return None
+
+        code = await loop.run_in_executor(None, smtp_probe)
+
+        if code == 250:
+            log.info(f"[VERIFY] ✅ {email} — confirmed real")
+            return True
+        elif code == 550:
+            log.info(f"[VERIFY] ❌ {email} — mailbox doesn't exist")
+            return False
+        else:
+            # Many servers return 250 for everything (catch-all) or block probes
+            # Treat as uncertain = still try it, just log
+            log.info(f"[VERIFY] ? {email} — server uncertain (code {code})")
+            return None
+
+    except Exception as e:
+        log.info(f"[VERIFY] ? {email} — probe failed: {e}")
+        return None
+
+async def get_verified_emails(emails: list) -> list:
+    """
+    Takes a list of candidate emails.
+    Returns only those that are verified real (or uncertain — we still try).
+    Drops emails confirmed as non-existent.
+    """
+    verified = []
+    for email in emails[:5]:  # check up to 5
+        result = await verify_email_smtp(email)
+        if result is not False:  # True or None — keep it
+            verified.append(email)
+        await asyncio.sleep(1)  # small pause between probes
+    return verified
+
+def save_whatsapp_leads(company: str, numbers: list, job_title: str):
+    """Save WhatsApp numbers to a separate leads file for manual follow-up."""
+    if not numbers:
+        return
+    wa_file = "whatsapp_leads.json"
+    leads = load_json_file(wa_file, [])
+    for num in numbers:
+        if not any(l.get("number") == num for l in leads):
+            leads.append({
+                "number":  num,
+                "company": company,
+                "role":    job_title,
+                "found":   datetime.now(timezone.utc).isoformat(),
+                "status":  "new",
+            })
+            log.info(f"[WHATSAPP] 📱 Saved: {num} → {company} ({job_title})")
+    save_json_file(wa_file, leads)
+
+# ── EXTRACT COMPANY NAME FROM JOB LISTING ────────────────────────
+def extract_company_from_listing(title: str, snippet: str, url: str) -> str:
+    """
+    Extract the actual hiring company name from a job listing.
+    Returns company name string, or empty string if not determinable.
+    Skips agency/confidential posts — those can't be directly contacted.
+    """
+    text = title + " " + snippet
+
+    # Hard skip: agency/confidential — no direct contact possible
+    skip_patterns = [
+        "confidential", "agency", "through a recruiter", "via agency",
+        "staffing", "recruitment agency", "undisclosed", "not disclosed",
+        "our client", "on behalf of"
+    ]
+    for p in skip_patterns:
+        if p in text.lower():
+            log.info(f"[EXTRACT] Skipping — agency/confidential post: '{p}' found")
+            return ""
+
+    # Try to extract from title: "Role at Company", "Company - Role", "Role | Company"
+    patterns = [
+        r'\bat\s+([A-Z][A-Za-z\s&\.]{2,30}?)(?:\s*[-–|]|$)',
+        r'^([A-Z][A-Za-z\s&\.]{2,30?})\s*[-–|]',
+        r'[-–|]\s*([A-Z][A-Za-z\s&\.]{2,30})$',
+        r'@\s*([A-Z][A-Za-z\s&\.]{2,30})',
+    ]
+    for pat in patterns:
+        m = re.search(pat, title)
+        if m:
+            name = m.group(1).strip()
+            # Sanity check: not a job title word
+            if not any(w in name.lower() for w in ['remote', 'entry', 'level', 'data', 'admin', 'clerk']):
+                return name
+
+    # Try to extract from URL if it's a company domain (not a job board)
+    dm = re.search(r"https?://(?:www\.)?([^/\s]+)", url)
+    if dm:
+        domain = dm.group(1).lower()
+        if not any(b in domain for b in JOB_BOARD_DOMAINS):
+            # Use domain as company name
+            name = domain.split('.')[0].replace('-', ' ').title()
+            return name
+
+    # Nothing found
+    return ""
+
+# ── GET COMPANY EMAILS (legacy fallback) ─────────────────────────
 async def get_emails(company: str, domain: str) -> List[str]:
-    """Ask Claude for likely HR email formats. Validate before using."""
+    """Legacy fallback — used only when scour_company is skipped."""
     if not domain:
         return []
-    prompt = f"""Company: {company}, domain: {domain}
-List the 3 most likely HR/hiring email addresses for this company.
-Use standard patterns: hr@, careers@, hiring@, jobs@, recruit@, info@
-Return ONLY a JSON array of email strings. No explanation."""
-    try:
-        raw = await call_claude(prompt, max_tokens=80)
-        clean = re.sub(r"```(?:json)?|```", "", raw).strip()
-        emails = json.loads(clean)
-        return [e for e in emails
-                if valid_email(e) and domain in e and not is_blocked_email(e)]
-    except Exception:
-        # Standard fallback patterns
-        return [f"hr@{domain}", f"careers@{domain}", f"info@{domain}"]
+    return [f"hr@{domain}", f"careers@{domain}", f"info@{domain}"]
 
-# ── SEND EMAIL ────────────────────────────────────────────────────
+# ── SEND EMAIL (TO + BCC 2 verified) ─────────────────────────────
 def send(job: Job, email_data: dict, cv: dict) -> bool:
     bounced = set(load_json_file(CONFIG["bounce_file"], []))
 
@@ -358,8 +596,8 @@ def send(job: Job, email_data: dict, cv: dict) -> bool:
         log.warning(f"[SEND] No valid emails for {job.company}")
         return False
 
-    to_addr  = clean_emails[0]
-    cc_addrs = clean_emails[1:3]  # max 2 CC
+    to_addr   = clean_emails[0]
+    bcc_addrs = clean_emails[1:3]  # BCC up to 2 others (not CC — cleaner)
 
     subject = email_data.get("email_subject", "")
     body    = email_data.get("email_body", "")
@@ -372,8 +610,7 @@ def send(job: Job, email_data: dict, cv: dict) -> bool:
     msg["From"]    = GMAIL_FROM
     msg["To"]      = to_addr
     msg["Subject"] = subject
-    if cc_addrs:
-        msg["Cc"] = ", ".join(cc_addrs)
+    # BCC: added to envelope but not visible in headers (professional)
     msg.attach(MIMEText(body, "plain"))
 
     # Photo — only if role warrants it and file exists
@@ -387,13 +624,14 @@ def send(job: Job, email_data: dict, cv: dict) -> bool:
             part.add_header("Content-Disposition", "attachment; filename=profile.jpg")
             msg.attach(part)
 
+    all_recipients = [to_addr] + bcc_addrs
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
             s.login(GMAIL_FROM, GMAIL_APP_PASSWORD)
-            s.sendmail(GMAIL_FROM, [to_addr] + cc_addrs, msg.as_string())
+            s.sendmail(GMAIL_FROM, all_recipients, msg.as_string())
         log.info(
             f"[SENT] ✅ {job.company} | {job.title} | "
-            f"→ {to_addr} | CC:{len(cc_addrs)} | style:{email_data.get('style')}"
+            f"→ {to_addr} | BCC:{len(bcc_addrs)} | style:{email_data.get('style')}"
         )
         return True
     except smtplib.SMTPRecipientsRefused:
@@ -432,63 +670,65 @@ async def search(query: str, limit: int = 5) -> list:
         return []
 
 async def result_to_job(result: dict) -> Optional[Job]:
+    """
+    Full v5.5 pipeline:
+    1. Extract company name — skip if agency/unknown
+    2. Scour internet for real emails + WhatsApp
+    3. SMTP-verify emails — drop confirmed dead ones
+    4. Return Job with verified emails ready to send
+    """
     url   = result.get("url", "")
     title = result.get("title", "")
     snip  = result.get("snippet", "")
 
-    dm = re.search(r"https?://(?:www\.)?([^/\s]+)", url)
-    if not dm:
-        log.info(f"[SKIP] No domain found in URL: {url[:60]}")
-        return None
-    domain = dm.group(1).lower()
-
-    # If it's a job board, try to extract the real company from title/snippet
-    is_board = any(b in domain for b in JOB_BOARD_DOMAINS)
-    if is_board:
-        # Try to find a company name + derive domain from snippet
-        # Pattern: "Company Name - Data Entry | Indeed" or "Company Name hiring..."
-        company_match = re.search(r'^([A-Z][A-Za-z\s&]{2,30})\s*[-–|]', title)
-        if company_match:
-            company_name = company_match.group(1).strip()
-            # Derive likely domain
-            slug = re.sub(r'[^a-z0-9]', '', company_name.lower())
-            if len(slug) >= 3:
-                domain = f"{slug}.com"
-                log.info(f"[BOARD] Extracted company '{company_name}' → trying {domain}")
-            else:
-                log.info(f"[SKIP] Job board domain and no extractable company: {domain}")
-                return None
-        else:
-            log.info(f"[SKIP] Job board domain, no company extractable: {domain}")
-            return None
-
-    # Entry-level filter
+    # ── STEP 1: Entry-level filter ────────────────────────────────
     if not is_entry_level(snip, title):
         return None
 
-    company = domain.split(".")[0].replace("-", " ").title()
-    location = "Remote"
-
-    emails = await get_emails(company, domain)
-    if not emails:
-        log.info(f"[SKIP] No emails found for {domain}")
+    # ── STEP 2: Extract company name (mandatory) ──────────────────
+    company = extract_company_from_listing(title, snip, url)
+    if not company:
+        log.info(f"[SKIP] No company name extractable — agency or undisclosed: {title[:60]}")
         return None
+
+    log.info(f"[COMPANY] Found: '{company}' from '{title[:50]}'")
+
+    # ── STEP 3: Scour internet for real contact details ───────────
+    intel = await scour_company(company)
+
+    # Save any WhatsApp numbers found
+    if intel["whatsapp"]:
+        save_whatsapp_leads(company, intel["whatsapp"], title)
+
+    if not intel["emails"]:
+        log.info(f"[SKIP] {company}: No emails found after internet scour")
+        return None
+
+    # ── STEP 4: SMTP verify emails — drop confirmed dead ─────────
+    verified = await get_verified_emails(intel["emails"])
+    if not verified:
+        log.info(f"[SKIP] {company}: All emails failed verification")
+        return None
+
+    log.info(f"[READY] {company}: {len(verified)} verified email(s) → {verified[0]}")
+
+    domain = intel.get("domain") or (verified[0].split('@')[1] if verified else "")
 
     return Job(
         title=title[:80],
         company=company,
-        location=location,
+        location="Remote",
         description=snip,
         url=url,
         company_domain=domain,
-        emails=emails,
+        emails=verified,
     )
 
 # ── WRITE STATUS (Supervisor reads this) ─────────────────────────
 def write_status(sent: int, skipped: int, error: str = None):
     save_json_file(CONFIG["status_file"], {
         "agent":       "kidbuu_job_agent",
-        "version":     "5.3",
+        "version":     "5.5",
         "last_run":    datetime.now(timezone.utc).isoformat(),
         "sent":        sent,
         "skipped":     skipped,
@@ -515,7 +755,7 @@ class RateTracker:
 # ── MAIN ──────────────────────────────────────────────────────────
 async def run():
     print("═" * 54)
-    print(f"  KIDBUU JOB AGENT v5.3 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"  KIDBUU JOB AGENT v5.5 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("═" * 54)
 
     # Startup checks

@@ -1,5 +1,17 @@
 [
   {
+    "run": 26,
+    "sast": "2026-03-22 20:57 SAST",
+    "timestamp": "2026-03-22T18:57:38.437696+00:00",
+    "status": "completed",
+    "balance_zar": 1623.25,
+    "in_session": false,
+    "shopify_pct": 94,
+    "shopify_phase": "Security audit + leak scan",
+    "days_to_deadline": 9,
+    "full": "Nucleus v5.0 \u2014 2026-03-22 20:57 SAST | Run #26\nFX: ZAR 1623.25 | OFFLINE\nGOLD# bid 4497.5 | EURUSD 1.15697 | GBPUSD 1.33388\nJobs: 0 sent \u00b7 0 skipped\nShopify: 94% \u2014 Security audit + leak scan\nDeadline: 9d remaining"
+  },
+  {
     "run": 25,
     "sast": "2026-03-22 20:56 SAST",
     "timestamp": "2026-03-22T18:56:59.009954+00:00",

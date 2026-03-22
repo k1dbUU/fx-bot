@@ -1,0 +1,128 @@
+{
+  "name": "Nicol Gunsalu",
+  "first_name": "Nicol",
+  "phone": "+27 73 456 8968",
+  "email": "panashegunsalu@gmail.com",
+  "location": "Cape Town, Western Cape 7460",
+  "linkedin": "https://www.linkedin.com/in/nicol-gunsalu-890382353",
+  "remote_ready": true,
+  "availability": "Immediately",
+  "languages": ["English"],
+
+  "professional_summary": "CompTIA A+ certified professional with 3+ years across CRM administration, high-volume client operations, and team management. Maintained 98–99% CRM accuracy across multiple employers. Led a remote team of 6. Handled 70–100+ daily client interactions. Fully remote setup, available immediately.",
+
+  "skills": [
+    "CRM systems — GoHighLevel, company-specific CRMs",
+    "CRM data entry and record maintenance (98–99% accuracy)",
+    "Hardware troubleshooting and maintenance — PCs, laptops",
+    "Software installations, updates and configuration",
+    "Networking basics and troubleshooting",
+    "CompTIA A+ certified",
+    "Excel — pivot tables, structured data management",
+    "Google Sheets — asset tracking, reporting",
+    "Performance reporting and dashboard maintenance",
+    "Team management and script coaching",
+    "High-volume client call handling (80–100+ daily)",
+    "Complaint resolution and escalation reduction"
+  ],
+
+  "certifications": [
+    "CompTIA A+"
+  ],
+
+  "experience": [
+    {
+      "role": "Lead Generator",
+      "company": "Eco Save",
+      "duration": "Nov 2024 – Feb 2025",
+      "type": "remote",
+      "highlights": [
+        "Handled 100+ UK client calls daily while resolving contract-related queries",
+        "Managed client complaints and FAQs, reducing escalation rates by 15%",
+        "Updated CRM records with 98% accuracy, ensuring client data integrity"
+      ]
+    },
+    {
+      "role": "Appointment Setter / Team Manager",
+      "company": "Starup Digital / Born Global",
+      "duration": "Jul 2024 – Nov 2024",
+      "type": "remote",
+      "highlights": [
+        "Led a remote team of 6 appointment setters, improving appointment booking rates",
+        "Optimized CRM workflows (GoHighLevel) to track staff performance and ensure quality",
+        "Provided script coaching to staff, enhancing call effectiveness and conversion"
+      ]
+    },
+    {
+      "role": "Sales Agent",
+      "company": "Direct Independent Brokers",
+      "duration": "Nov 2023 – Jul 2024",
+      "type": "office",
+      "highlights": [
+        "Processed 70+ daily insurance inquiries; consistently ranked in top 3 agents for sales",
+        "Maintained CRM records with 99% accuracy to improve client communication",
+        "Explained insurance contract terms clearly, boosting client satisfaction and policy uptake"
+      ]
+    },
+    {
+      "role": "Solution Agent",
+      "company": "iContact BPO",
+      "duration": "Jul 2023 – Nov 2023",
+      "type": "office",
+      "highlights": [
+        "Engaged with clients to explain digital information products, handling 80+ calls daily",
+        "Upsold additional services, contributing to a 10% increase in revenue",
+        "Updated client files with accurate details, reducing follow-up errors"
+      ]
+    },
+    {
+      "role": "Facility Attendant",
+      "company": "Planet Fitness Plattekloof",
+      "duration": "Aug 2022 – Dec 2022",
+      "type": "office",
+      "highlights": [
+        "Assisted with maintenance and software updates of gym equipment, ensuring minimal downtime",
+        "Provided facility tours and enforced safety measures for members",
+        "Supported front-desk staff with member queries, ensuring smooth operations"
+      ]
+    },
+    {
+      "role": "IT Asset Management & Network Maintenance",
+      "company": "Personal Project",
+      "duration": "2025",
+      "type": "project",
+      "highlights": [
+        "Developed a simple asset management system to track and assess computer and network devices",
+        "Collected and analyzed device performance data to identify faults and suggest maintenance actions",
+        "Managed structured asset data in Excel and Google Sheets for accurate reporting",
+        "Prepared maintenance and optimization reports using Google Docs and Microsoft Word"
+      ]
+    }
+  ],
+
+  "education": {
+    "school": "Edgemead High School",
+    "years": "2017 – 2021"
+  },
+
+  "references": [
+    { "name": "Justin Neves", "title": "Sales Manager", "company": "Eco Save", "phone": "+27 66 245 3992" },
+    { "name": "Daniel Starup Falck", "title": "CEO", "company": "Starup Digital / Born Global Consulting", "phone": "+45 29 60 16 17" },
+    { "name": "Lyle Feldman", "title": "Team Manager", "company": "Direct Independent Brokers", "phone": "+27 68 181 9728" },
+    { "name": "Wardah", "title": "Team Manager", "company": "iContact BPO", "phone": "+27 62 937 0935" },
+    { "name": "Cody Kallis", "title": "Manager", "company": "Planet Fitness Plattekloof", "phone": "+27 74 742 3633" }
+  ],
+
+  "target_roles": [
+    "Data Entry Specialist (remote)",
+    "CRM Administrator (remote)",
+    "Virtual Assistant (remote)",
+    "Back Office Administrator (remote)",
+    "IT Support Technician (remote)",
+    "Helpdesk Support (remote)",
+    "Medical Billing / Claims Processor (remote)",
+    "AI Data Annotator (remote)"
+  ],
+
+  "note": "Fully remote setup in Cape Town. Available immediately. CompTIA A+ certified. 3+ years CRM experience across 4 employers. Managed teams remotely."
+}

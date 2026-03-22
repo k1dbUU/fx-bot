@@ -1,9 +1,9 @@
 {
   "agent": "kidbuu_job_agent",
   "version": "5.6",
-  "last_run": "2026-03-22T21:02:31.878435+00:00",
+  "last_run": "2026-03-22T21:29:56.903181+00:00",
   "sent": 0,
   "skipped": 60,
   "error": null,
-  "run_id": "23412306514"
+  "run_id": "23412791654"
 }

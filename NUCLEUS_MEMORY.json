@@ -1,142 +1,93 @@
 {
-  "_schema_version": "1.0",
-  "_description": "Nucleus brain file. Max 10 lessons retained (oldest dropped). Read at session start.",
-  "_compaction_rule": "Keep only 10 most recent lessons. On update, drop index 0 if length > 10.",
-  "nucleus_version": "2.0",
-  "created": "2026-03-21",
-  "last_updated": "2026-03-21",
-  "system_state": {
-    "fx_agent_version": "5.2",
-    "dashboard_version": "2.0",
-    "repo": "k1dbUU/fx-bot",
-    "repo_visibility": "public",
-    "metaapi_account_id": "06f3d980-d4f8-4ffd-bd14-24ebe5856f52",
-    "last_confirmed_live": "2026-03-21",
-    "status_json_exists": false,
-    "heartbeat_deployed": false
+  "operator": "K-I-D-B-U-U",
+  "version": "4.0",
+  "last_updated": "2026-03-22",
+  "DEADLINE": {
+    "date": "2026-03-31",
+    "mandate": "Revenue must begin flowing from at least one income stream before end of March 2026. If no income by March 31 \u2014 Nucleus resets. This is not a suggestion. This is the operating constraint.",
+    "income_streams": [
+      "FX Agent \u2014 demo account active, live account funding required to generate real P&L",
+      "Job Agent \u2014 applications must go out and land interviews before month end",
+      "Shopify Agent \u2014 must be built and operational before month end"
+    ],
+    "honest_assessment": "Today is March 22. 9 days remain. FX cannot generate income until live account is funded. Job applications need regex fix uploaded first. Shopify Agent needs to be built. All three streams require immediate action."
   },
-  "preferences": {
-    "currency_display": "both_usd_and_zar",
-    "zar_rate": 18.5,
-    "zar_rate_reminder": "verify at xe.com each session",
-    "dashboard_style": "dark terminal \u2014 Space Mono + Syne \u2014 matching fx_agent_dashboard.html",
-    "response_format": "bullet points, most important first, no filler",
-    "file_confirmation": "always confirm with Nic before creating large files",
-    "single_form_mandate": "merge features into fewest files, no sprawl",
-    "no_questions_mandate": "lead dont ask \u2014 decide and build"
+  "PRIORITY_TASKS": {
+    "1": "Upload kidbuu_job_agent.py v5.2 to GitHub \u2014 unblocks all job applications immediately",
+    "2": "Supervisor builds Shopify Agent \u2014 one phase per 5min run \u2014 12 phases total \u2014 started now",
+    "3": "Fund live XM account \u2014 unlocks real FX trading revenue",
+    "4": "Deploy dashboard to Vercel \u2014 enables iPhone access for monitoring on the go"
   },
-  "subscriptions": {
-    "metaapi": {
-      "monthly_usd": 2.14,
-      "next_billing": "2026-04-21",
-      "verdict": "KEEP \u2014 only cloud MT5 option"
+  "SHOPIFY_AGENT_MANDATE": {
+    "instruction": "Supervisor must build the Shopify Agent autonomously. One phase per run. 12 phases. Every 5 minutes. Do not wait for operator input between phases. Report progress in cortex log and email at 25/50/75/100%.",
+    "capabilities_required": [
+      "Shopify API auth and connection",
+      "Product catalogue management (add/edit/delete)",
+      "Image upload from operator command",
+      "Inventory and pricing management",
+      "Order processing and fulfilment",
+      "Voice command parser",
+      "Voice ordering integration",
+      "Autonomous monitoring and self-healing"
+    ],
+    "deadline": "Must be operational before March 31 2026"
+  },
+  "nucleus_rules": [
+    "Accuracy above all \u2014 never hallucinate data. Every response must come from real files.",
+    "Supervisor runs every 5 minutes regardless of market hours or agent activity",
+    "All secrets via GitHub Secrets \u2014 never hardcode credentials",
+    "K-I-D-B-U-U alias on all repo-facing code \u2014 no real names in public files",
+    "Leak scanner runs before every log write, email, and output",
+    "Both USD and ZAR on every financial figure",
+    "End of March deadline is hard \u2014 no extensions",
+    "Shopify Agent build is Priority Task 1 \u2014 Supervisor works on it every single run"
+  ],
+  "architecture": {
+    "supervisor": {
+      "file": "nucleus_supervisor.py",
+      "version": "4.0",
+      "runs": "every 5min always"
     },
-    "anthropic": {
-      "monthly_usd_estimate": 2.0,
-      "verdict": "KEEP \u2014 job agent depends on it"
+    "fx_agent": {
+      "file": "fx_agent_bot.py",
+      "version": "5.4",
+      "runs": "every 5min Mon-Thu session"
     },
-    "github_actions": {
-      "monthly_usd": 0.0,
-      "verdict": "KEEP \u2014 free on public repo"
+    "job_agent": {
+      "file": "kidbuu_job_agent.py",
+      "version": "5.2",
+      "runs": "every 5min always"
     },
-    "windows_vps": {
-      "monthly_usd": 0.0,
-      "verdict": "NOT NEEDED \u2014 MetaAPI + GitHub covers FX 24/7"
+    "shopify_agent": {
+      "file": "shopify_agent.py",
+      "version": "building",
+      "runs": "when complete"
     }
   },
-  "lessons": [
-    {
-      "timestamp": "2026-03-22T12:59:01.366298+00:00",
-      "lesson": "**Pattern observed:** All three sessions show identical pricing data (GOLD# 4497.5, EURUSD 1.15697, GBPUSD 1.33388) with no price movement or balance changes \u2192 **recommended adjustment:** Switch to live market data feed as current data appears stale/frozen, preventing accurate trading opportunities assessment."
-    },
-    {
-      "id": 1,
-      "date": "2026-03-21",
-      "category": "architecture",
-      "lesson": "FX agent runs on GitHub Actions + MetaAPI cloud. Not local. Not a VPS. PC can be off.",
-      "source": "fx_agent_workflow.yml + metaapi billing screenshot"
-    },
-    {
-      "id": 2,
-      "date": "2026-03-21",
-      "category": "security",
-      "lesson": "FX.txt contains META_API_TOKEN, META_ACCOUNT_ID, GitHub PAT in plain text. Must be deleted. Keys already in GitHub Secrets.",
-      "source": "FX.txt scan"
-    },
-    {
-      "id": 3,
-      "date": "2026-03-21",
-      "category": "security",
-      "lesson": "Anthropic API key hardcoded in nicol_apply_agent.py line 33. Move to .env file.",
-      "source": "nicol_apply_agent.py scan line 33"
-    },
-    {
-      "id": 4,
-      "date": "2026-03-21",
-      "category": "proof_of_life",
-      "lesson": "status.json did not exist before v5.2. FX agent had no heartbeat. Nucleus could not confirm agent was alive. Fixed in v5.2 by baking write_heartbeat() into fx_agent_bot.py.",
-      "source": "truth audit session"
-    },
-    {
-      "id": 5,
-      "date": "2026-03-21",
-      "category": "cost",
-      "lesson": "Total monthly stack is ~$4.14 (~R76). MetaAPI $2.14 confirmed from billing screenshot. No VPS needed.",
-      "source": "metaapi billing screenshot + architecture audit"
-    },
-    {
-      "id": 6,
-      "date": "2026-03-21",
-      "category": "dashboard",
-      "lesson": "Previous dashboard had fake placeholder data (balance, trades, prices all showed \u2014). v2.0 reads live from status.json and state.json via raw.githubusercontent.com. No auth needed on public repo.",
-      "source": "fake data audit"
-    },
-    {
-      "id": 7,
-      "date": "2026-03-21",
-      "category": "workflow",
-      "lesson": "workflow.yml only committed state.json. Updated to also commit status.json so heartbeat is visible at raw.githubusercontent.com/k1dbUU/fx-bot/main/status.json",
-      "source": "fx_agent_workflow.yml diff"
-    },
-    {
-      "id": 8,
-      "date": "2026-03-21",
-      "category": "agents",
-      "lesson": "Job agent (nicol_apply_agent.py) is local only \u2014 runs manually on Nic's PC. Not cloud-hosted. Nucleus monitors it via log file when PC is on.",
-      "source": "nicol_apply_agent.py scan"
-    }
-  ],
-  "deleted_files": [],
-  "files_to_delete": [
-    "FX.txt \u2014 contains exposed credentials"
-  ],
+  "cost_monthly": {
+    "metaapi": "$2.14 / R39.59",
+    "anthropic": "~$2.00 / ~R37.00",
+    "github": "$0 \u2014 unlimited on public repo",
+    "total": "~$4.14 / ~R76.59"
+  },
+  "lessons": [],
+  "last_lesson_utc": null,
   "evolution_log": [
     {
-      "timestamp": "2026-03-22T12:59:01.366312+00:00",
-      "event": "Overnight lesson by Nucleus Supervisor v2.0"
+      "timestamp": "2026-03-22T16:00:00+00:00",
+      "event": "Nucleus v4.0 \u2014 Supervisor independent 5min cycle, Shopify build started, March deadline encoded"
     },
     {
-      "version": "1.0",
-      "date": "2026-03-21",
-      "changes": "Initial Nucleus build. nucleus.py supervisor, nucleus_dashboard.html v1. Hardcoded repo path, fake placeholder data."
+      "timestamp": "2026-03-22T14:00:00+00:00",
+      "event": "Nucleus v3.0 \u2014 FX + Job + Supervisor fully deployed, War Room dashboard live"
     },
     {
-      "version": "2.0",
-      "date": "2026-03-21",
-      "what_is_new": [
-        "fx_agent_bot.py v5.2 \u2014 heartbeat baked in via write_heartbeat()",
-        "status.json written after every run \u2014 proof of life",
-        "workflow.yml commits status.json alongside state.json",
-        "billing_vitals.json \u2014 manual billing tracker in repo",
-        "NUCLEUS_MEMORY.json \u2014 this file \u2014 persistent brain",
-        "dashboard v2 \u2014 reads live from raw.githubusercontent.com, no fake data"
-      ],
-      "what_is_retired": [
-        "Hardcoded repo path in dashboard (was 'nicol-gunsalu/fx-agent', now 'k1dbUU/fx-bot')",
-        "Placeholder \u2014 values for balance/trades/prices",
-        "Suggestion to buy Windows VPS (confirmed unnecessary)"
-      ]
+      "timestamp": "2026-03-22T10:00:00+00:00",
+      "event": "FX Agent v5.4 \u2014 all bugs fixed, live data confirmed"
+    },
+    {
+      "timestamp": "2026-03-22T08:30:00+00:00",
+      "event": "First successful FX run \u2014 ZAR 1623.25, all 3 symbols processing"
     }
-  ],
-  "last_lesson_utc": "2026-03-22T12:59:01.366310+00:00"
+  ]
 }

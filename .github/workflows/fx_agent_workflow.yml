@@ -1,40 +1,45 @@
-name: FX Agent — 24/7
-
-# Runs every 5 min during NY session (Mon-Thu, 13:00-19:55 UTC = 15:00-21:55 SAST)
-# Also fires at UTC 10:00 to catch NY AM Silver Bullet window
-# Repo must be PUBLIC — GitHub Actions on public repos = unlimited free minutes
-# v5.2: status.json (heartbeat) committed alongside state.json
+name: Nucleus — FX + Jobs + Supervisor (24/7)
+# Operator: K-I-D-B-U-U
+# Repo: PUBLIC — unlimited free GitHub Actions minutes
+# All secrets via GitHub Secrets — nothing hardcoded
 
 on:
   schedule:
+    # FX session: every 5min Mon-Thu 13:00-19:55 UTC (15:00-21:55 SAST)
     - cron: "*/5 13-19 * * 1-4"
+    # NY AM Silver Bullet window
     - cron: "0 10 * * 1-4"
+    # Job agent: every 4 hours around the clock
+    - cron: "0 */4 * * *"
+    # Overnight supervisor: every hour 00:00-12:00 UTC
+    - cron: "0 0-12 * * *"
   workflow_dispatch:
 
 jobs:
-  run-agent:
+
+  # ── FX AGENT + SUPERVISOR ──────────────────────────────────────
+  fx-agent:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
+    name: FX Agent
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT }}
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install MetaAPI SDK
-        run: pip install metaapi-cloud-sdk
+      - name: Install dependencies
+        run: pip install metaapi-cloud-sdk httpx
 
       - name: Init state.json if missing
         run: |
           if [ ! -f state.json ]; then
             echo '{"date":"2000-01-01","daily_losses":{"GOLD#":0,"EURUSD":0,"GBPUSD":0},"swept_high":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"swept_low":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_london":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_ny_am":{"GOLD#":false,"EURUSD":false,"GBPUSD":false},"sb_ny_pm":{"GOLD#":false,"EURUSD":false,"GBPUSD":false}}' > state.json
-            echo "state.json created fresh"
+            echo "state.json created"
           else
             echo "state.json exists — keeping"
           fi
@@ -45,11 +50,64 @@ jobs:
           META_ACCOUNT_ID: ${{ secrets.META_ACCOUNT_ID }}
         run: python fx_agent_bot.py
 
-      - name: Save state and heartbeat to repo
+      - name: Run Nucleus Supervisor
+        if: always()
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
+          GMAIL_TO:           ${{ secrets.GMAIL_TO }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OPERATOR_ALIAS:     K-I-D-B-U-U
+        run: python nucleus_supervisor.py
+
+      - name: Commit outputs
         if: always()
         run: |
-          git config user.name  "FX-Agent-Bot"
-          git config user.email "bot@fxagent.local"
-          git add state.json status.json || true
-          git diff --staged --quiet || git commit -m "heartbeat: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git config user.name  "nucleus-bot"
+          git config user.email "bot@nucleus.local"
+          git add state.json status.json cortex_log.json NUCLEUS_MEMORY.json || true
+          git diff --staged --quiet || git commit -m "nucleus: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push || true
+
+  # ── JOB AGENT (every 4 hours) ─────────────────────────────────
+  job-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    name: Job Agent
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install httpx
+
+      - name: Load CV data from secret
+        run: |
+          echo '${{ secrets.CV_DATA_JSON }}' > cv_data.json
+          # Init tracking files if they don't exist yet
+          [ -f applied_jobs.json ] || echo '{}' > applied_jobs.json
+          [ -f bounced_emails.json ] || echo '[]' > bounced_emails.json
+          echo "CV and tracking files ready"
+
+      - name: Run Job Agent
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OPERATOR_ALIAS:     K-I-D-B-U-U
+        run: python kidbuu_job_agent.py
+
+      - name: Save tracking files to repo
+        if: always()
+        run: |
+          git config user.name  "nucleus-bot"
+          git config user.email "bot@nucleus.local"
+          git add applied_jobs.json bounced_emails.json job_queue.json job_agent_log.txt job_agent_status.json || true
+          git diff --staged --quiet || git commit -m "jobs: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push || true

@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────
+# NUCLEUS .gitignore — KidBoo Privacy Firewall
+# ─────────────────────────────────────────────
+
+# NEVER commit these
+.env
+.env.local
+.env.production
+*.env
+
+# Secrets and keys
+secrets.json
+*.pem
+*.key
+*.p12
+
+# Photos / personal files
+nicol_photo.jpg
+kidboo_photo.jpg
+*.photo.*
+cv_*.pdf
+profile_*.pdf
+
+# Local Python environment
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Output files (generated locally, not needed in repo)
+output/
+outputs/
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Job agent private files — never commit these
+cv_data.json
+kidbuu_photo.jpg
+applied_jobs.json
+bounced_emails.json
+job_agent_log.txt
+job_queue.json
+output/
+outputs/

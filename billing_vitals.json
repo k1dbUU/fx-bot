@@ -1,0 +1,28 @@
+{
+  "_instructions": "Fill these 3 values from app.metaapi.cloud/billing — then commit this file to your repo",
+  "_source": "app.metaapi.cloud/billing",
+
+  "metaapi": {
+    "plan": "paid",
+    "monthly_usd": 2.14,
+    "account_balance_usd": 7.86,
+    "next_billing_date": "2026-04-21",
+    "last_updated": "2026-03-21"
+  },
+
+  "anthropic": {
+    "plan": "pay-per-use",
+    "estimated_monthly_usd": 2.00,
+    "next_billing_date": "ACTION_REQUIRED: check console.anthropic.com/settings/billing",
+    "last_updated": "2026-03-21"
+  },
+
+  "github": {
+    "plan": "free",
+    "monthly_usd": 0.00,
+    "note": "Public repo = unlimited Actions minutes"
+  },
+
+  "zar_rate": 18.50,
+  "zar_rate_note": "Update this from xe.com each session"
+}

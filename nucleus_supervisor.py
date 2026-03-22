@@ -595,7 +595,7 @@ async def monitor_all_agents() -> list:
         if last_run and hours_since(last_run) > stale and is_fx_session():
             issues.append(f"{name}: stale {hours_since(last_run):.1f}h")
             if agent["critical"]:
-                send_alert(f"⚠ {name} STALE", f"{name} last seen {hours_since(last_run):.1f}h ago. Check GitHub Actions.\n{error or ''}")
+                print(f"[MONITOR] ⚠ {name} stale — visible in dashboard, no email spam")
         if error:
             issues.append(f"{name}: {error}")
             print(f"[MONITOR] ⚠ {name}: {error}")
@@ -646,10 +646,10 @@ Standalone function or class. Include docstring, error handling.""",
     build["build_log"].append(log_entry)
     save_json(SHOPIFY_BUILD, build)
     print(f"[SHOPIFY] ✅ Phase {next_phase['id']} done — {next_phase['pct']}%")
-    if next_phase["pct"] in [25, 50, 75, 100]:
+    if next_phase["pct"] == 100:
         send_alert(
-            f"Shopify Agent {next_phase['pct']}% Built",
-            f"Phase {next_phase['id']}: {next_phase['name']} complete.\n{log_entry['note']}\n— Supervisor v{VERSION}"
+            f"Shopify Agent 100% Built ✅",
+            f"All 12 phases complete.\n{log_entry['note']}\n— Supervisor v{VERSION}"
         )
 
 async def write_cortex():

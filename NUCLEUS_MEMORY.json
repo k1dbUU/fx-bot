@@ -1,0 +1,140 @@
+{
+  "_schema_version": "1.0",
+  "_description": "Nucleus brain file. Max 10 lessons retained (oldest dropped). Read at session start.",
+  "_compaction_rule": "Keep only 10 most recent lessons. On update, drop index 0 if length > 10.",
+
+  "nucleus_version": "2.0",
+  "created": "2026-03-21",
+  "last_updated": "2026-03-21",
+
+  "system_state": {
+    "fx_agent_version": "5.2",
+    "dashboard_version": "2.0",
+    "repo": "k1dbUU/fx-bot",
+    "repo_visibility": "public",
+    "metaapi_account_id": "06f3d980-d4f8-4ffd-bd14-24ebe5856f52",
+    "last_confirmed_live": "2026-03-21",
+    "status_json_exists": false,
+    "heartbeat_deployed": false
+  },
+
+  "preferences": {
+    "currency_display": "both_usd_and_zar",
+    "zar_rate": 18.50,
+    "zar_rate_reminder": "verify at xe.com each session",
+    "dashboard_style": "dark terminal — Space Mono + Syne — matching fx_agent_dashboard.html",
+    "response_format": "bullet points, most important first, no filler",
+    "file_confirmation": "always confirm with Nic before creating large files",
+    "single_form_mandate": "merge features into fewest files, no sprawl",
+    "no_questions_mandate": "lead dont ask — decide and build"
+  },
+
+  "subscriptions": {
+    "metaapi": {
+      "monthly_usd": 2.14,
+      "next_billing": "2026-04-21",
+      "verdict": "KEEP — only cloud MT5 option"
+    },
+    "anthropic": {
+      "monthly_usd_estimate": 2.00,
+      "verdict": "KEEP — job agent depends on it"
+    },
+    "github_actions": {
+      "monthly_usd": 0.00,
+      "verdict": "KEEP — free on public repo"
+    },
+    "windows_vps": {
+      "monthly_usd": 0.00,
+      "verdict": "NOT NEEDED — MetaAPI + GitHub covers FX 24/7"
+    }
+  },
+
+  "lessons": [
+    {
+      "id": 1,
+      "date": "2026-03-21",
+      "category": "architecture",
+      "lesson": "FX agent runs on GitHub Actions + MetaAPI cloud. Not local. Not a VPS. PC can be off.",
+      "source": "fx_agent_workflow.yml + metaapi billing screenshot"
+    },
+    {
+      "id": 2,
+      "date": "2026-03-21",
+      "category": "security",
+      "lesson": "FX.txt contains META_API_TOKEN, META_ACCOUNT_ID, GitHub PAT in plain text. Must be deleted. Keys already in GitHub Secrets.",
+      "source": "FX.txt scan"
+    },
+    {
+      "id": 3,
+      "date": "2026-03-21",
+      "category": "security",
+      "lesson": "Anthropic API key hardcoded in nicol_apply_agent.py line 33. Move to .env file.",
+      "source": "nicol_apply_agent.py scan line 33"
+    },
+    {
+      "id": 4,
+      "date": "2026-03-21",
+      "category": "proof_of_life",
+      "lesson": "status.json did not exist before v5.2. FX agent had no heartbeat. Nucleus could not confirm agent was alive. Fixed in v5.2 by baking write_heartbeat() into fx_agent_bot.py.",
+      "source": "truth audit session"
+    },
+    {
+      "id": 5,
+      "date": "2026-03-21",
+      "category": "cost",
+      "lesson": "Total monthly stack is ~$4.14 (~R76). MetaAPI $2.14 confirmed from billing screenshot. No VPS needed.",
+      "source": "metaapi billing screenshot + architecture audit"
+    },
+    {
+      "id": 6,
+      "date": "2026-03-21",
+      "category": "dashboard",
+      "lesson": "Previous dashboard had fake placeholder data (balance, trades, prices all showed —). v2.0 reads live from status.json and state.json via raw.githubusercontent.com. No auth needed on public repo.",
+      "source": "fake data audit"
+    },
+    {
+      "id": 7,
+      "date": "2026-03-21",
+      "category": "workflow",
+      "lesson": "workflow.yml only committed state.json. Updated to also commit status.json so heartbeat is visible at raw.githubusercontent.com/k1dbUU/fx-bot/main/status.json",
+      "source": "fx_agent_workflow.yml diff"
+    },
+    {
+      "id": 8,
+      "date": "2026-03-21",
+      "category": "agents",
+      "lesson": "Job agent (nicol_apply_agent.py) is local only — runs manually on Nic's PC. Not cloud-hosted. Nucleus monitors it via log file when PC is on.",
+      "source": "nicol_apply_agent.py scan"
+    }
+  ],
+
+  "deleted_files": [],
+  "files_to_delete": [
+    "FX.txt — contains exposed credentials"
+  ],
+
+  "evolution_log": [
+    {
+      "version": "1.0",
+      "date": "2026-03-21",
+      "changes": "Initial Nucleus build. nucleus.py supervisor, nucleus_dashboard.html v1. Hardcoded repo path, fake placeholder data."
+    },
+    {
+      "version": "2.0",
+      "date": "2026-03-21",
+      "what_is_new": [
+        "fx_agent_bot.py v5.2 — heartbeat baked in via write_heartbeat()",
+        "status.json written after every run — proof of life",
+        "workflow.yml commits status.json alongside state.json",
+        "billing_vitals.json — manual billing tracker in repo",
+        "NUCLEUS_MEMORY.json — this file — persistent brain",
+        "dashboard v2 — reads live from raw.githubusercontent.com, no fake data"
+      ],
+      "what_is_retired": [
+        "Hardcoded repo path in dashboard (was 'nicol-gunsalu/fx-agent', now 'k1dbUU/fx-bot')",
+        "Placeholder — values for balance/trades/prices",
+        "Suggestion to buy Windows VPS (confirmed unnecessary)"
+      ]
+    }
+  ]
+}

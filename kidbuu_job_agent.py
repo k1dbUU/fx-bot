@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  KIDBUU JOB ORCHESTRATOR v5.1                                ║
+║  KIDBUU JOB ORCHESTRATOR v5.2                                ║
 ║  Operator: K-I-D-B-U-U                                       ║
 ║  24/7 on GitHub Actions — no timezone scheduling needed      ║
 ║                                                              ║
@@ -45,6 +45,38 @@ ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
 GMAIL_FROM         = os.getenv("GMAIL_FROM", "")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 OPERATOR           = os.getenv("OPERATOR_ALIAS", "K-I-D-B-U-U")
+
+# ── COMMAND FILE READER ───────────────────────────────────────────
+def read_nucleus_command() -> dict:
+    """
+    Reads nucleus_command.json if present.
+    Returns parsed command dict or empty dict.
+    Supports: max override, pause, resume, report.
+    """
+    cmd_file = os.getenv("NUCLEUS_COMMAND_FILE", "nucleus_command.json")
+    try:
+        if os.path.exists(cmd_file):
+            with open(cmd_file) as f:
+                data = json.load(f)
+            status = data.get("status", "pending")
+            if status == "executed":
+                return {}
+            cmd_text = (data.get("command") or "").lower()
+            result = {"raw": cmd_text}
+            # Parse: "send 20 applications and stop"
+            import re
+            m = re.search(r'send\s+(\d+)', cmd_text)
+            if m:
+                result["max_override"] = int(m.group(1))
+            if "pause" in cmd_text or "stop sending" in cmd_text:
+                result["pause"] = True
+            if "resume" in cmd_text or "start sending" in cmd_text:
+                result["resume"] = True
+            print(f"[COMMAND] Received from War Room: {cmd_text}")
+            return result
+    except Exception as e:
+        print(f"[COMMAND] Read error: {e}")
+    return {}
 
 # ── CONFIG ────────────────────────────────────────────────────────
 CONFIG = {
@@ -502,16 +534,28 @@ async def run():
     skipped = 0
     style_i = 0
 
+    # ── READ WAR ROOM COMMAND ─────────────────────────────────────
+    cmd = read_nucleus_command()
+    max_this_run = CONFIG["max_per_run"]
+    if cmd.get("pause"):
+        log.info("[COMMAND] PAUSE received — skipping all sends this run")
+        write_status(0, 0, "paused by command")
+        print("\n[DONE] ✅ Paused by War Room command")
+        return
+    if cmd.get("max_override"):
+        max_this_run = cmd["max_override"]
+        log.info(f"[COMMAND] Max override: sending up to {max_this_run} this run")
+
     for query in JOB_SEARCHES:
-        if sent >= CONFIG["max_per_run"]:
-            log.info(f"[LIMIT] Reached {CONFIG['max_per_run']} sends — stopping run")
+        if sent >= max_this_run:
+            log.info(f"[LIMIT] Reached {max_this_run} sends — stopping run")
             break
 
         log.info(f"\n[SEARCH] {query}")
         results = await search(query, limit=4)
 
         for result in results:
-            if sent >= CONFIG["max_per_run"]:
+            if sent >= max_this_run:
                 break
             if not rate.can_send():
                 log.info("[THROTTLE] Hourly cap — pausing 10min")

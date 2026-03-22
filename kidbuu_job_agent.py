@@ -686,21 +686,40 @@ async def search(query: str, limit: int = 5) -> list:
                 params={"q": query, "kl": "za-en"},
             )
             results = []
-            # Extract URLs and titles
-            urls    = re.findall(r'class="result__a"[^>]*href="([^"]+)"', r.text)
-            titles  = re.findall(r'class="result__a"[^>]*>[^<]*<[^>]+>([^<]+)<', r.text)
-            snippets = re.findall(r'class="result__snippet"[^>]*>([^<]+)<', r.text)
-            for i in range(min(limit, len(urls))):
-                results.append({
-                    "url":     urls[i] if i < len(urls) else "",
-                    "title":   titles[i].strip() if i < len(titles) else "",
-                    "snippet": snippets[i].strip() if i < len(snippets) else "",
-                })
+            # DDG HTML structure: parse result blocks individually for reliability
+            # Each result block contains the URL, title, and snippet together
+            blocks = re.findall(
+                r'<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?'
+                r'class="result__snippet"[^>]*>(.*?)</(?:a|span|div)>',
+                r.text, re.DOTALL
+            )
+            if blocks:
+                for url, raw_title, raw_snippet in blocks[:limit]:
+                    title = re.sub(r'<[^>]+>', '', raw_title).strip()
+                    snippet = re.sub(r'<[^>]+>', '', raw_snippet).strip()
+                    if url and title:
+                        results.append({"url": url, "title": title, "snippet": snippet})
+            
+            # Fallback: try simpler separate extraction if blocks failed
+            if not results:
+                urls     = re.findall(r'<a[^>]+class="result__a"[^>]*href="([^"]+)"', r.text)
+                # Try both: direct text and nested span
+                titles_a = re.findall(r'<a[^>]+class="result__a"[^>]*>([^<]{3,100})</a>', r.text)
+                titles_b = re.findall(r'class="result__a"[^>]*>(?:[^<]*<[^>]+>)?([^<]{3,100})', r.text)
+                titles   = titles_a if titles_a else titles_b
+                snippets = re.findall(r'class="result__snippet"[^>]*>([^<]{10,})<', r.text)
+                for i in range(min(limit, len(urls))):
+                    title = titles[i].strip() if i < len(titles) else ""
+                    url   = urls[i] if i < len(urls) else ""
+                    snip  = snippets[i].strip() if i < len(snippets) else ""
+                    if url and title:
+                        results.append({"url": url, "title": title, "snippet": snip})
+            
+            log.info(f"[SEARCH] '{query[:40]}' → {len(results)} results")
             return results
     except Exception as e:
         log.warning(f"[SEARCH] Failed for '{query}': {e}")
         return []
-
 async def result_to_job(result: dict) -> Optional[Job]:
     """
     Full v5.6 pipeline:

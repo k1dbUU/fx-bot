@@ -1,20 +1,15 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  KIDBUU JOB ORCHESTRATOR v5.2                                ║
+║  KIDBUU JOB ORCHESTRATOR v5.3                                ║
 ║  Operator: K-I-D-B-U-U                                       ║
 ║  24/7 on GitHub Actions — no timezone scheduling needed      ║
 ║                                                              ║
-║  NUCLEUS QA PASS — issues found and fixed vs v5.0:          ║
-║  [FIX-1] Removed timezone window logic — overcomplicated,    ║
-║          agent runs globally at any time, sends immediately  ║
-║  [FIX-2] Added entry-level filter — skip roles requiring     ║
-║          3+ years experience, degrees, or senior titles      ║
-║  [FIX-3] Added role quality gate — skip vague/scam posts     ║
-║  [FIX-4] Simplified email prompt — CV stays honest,          ║
-║          no skill inflation, no AI buzzwords                 ║
-║  [FIX-5] Added Nucleus status write after every run          ║
-║  [FIX-6] Better error handling — one bad email never         ║
-║          crashes the whole run                               ║
+║  v5.3 FIXES (vs v5.2):                                       ║
+║  [FIX-7] Search queries now target company career pages,     ║
+║          not job boards — reduces skip rate dramatically     ║
+║  [FIX-8] Job board results: extract company from title       ║
+║          and derive domain — instead of hard skipping        ║
+║  [FIX-9] Added skip reason logging for every filtered result ║
 ╚══════════════════════════════════════════════════════════════╝
 
 TARGET ROLES (agent-compatible, entry-level, no 5yr experience):
@@ -110,32 +105,26 @@ log = logging.getLogger("KidBuuJobs")
 # Research-based: legal data ops, medical billing, AI annotation,
 # bookkeeping, CRM admin, back office — all hire SA contractors
 JOB_SEARCHES = [
-    # Legal / Insurance data ops — US firms, high volume, SA-friendly
-    "data entry specialist remote entry level hire now",
-    "legal data entry clerk remote south africa contractor",
-    "insurance data processor remote entry level",
+    # Direct company career page searches — avoids job boards
+    'site:careers "data entry" remote "apply now" entry level',
+    'site:jobs "CRM administrator" remote "south africa" hire',
+    '"we are hiring" "data entry" remote "work from home" apply',
+    '"now hiring" "data capture" OR "CRM" remote 2025 2026',
+    '"apply" "data entry clerk" remote "no experience" site:com',
 
-    # Medical billing — rule-based, no client contact
-    "medical billing assistant remote entry level south africa",
-    "claims data processor remote no experience required",
+    # Direct outreach targets — companies known to hire SA remote
+    '"remote data entry" "south africa" contractor 2025 hire email',
+    '"hiring" "data administrator" remote "cape town" OR "south africa"',
+    '"data entry" "remote" "compTIA" OR "CRM" "apply" email hr@',
+    '"entry level" "data processor" remote hire email careers@',
+    '"virtual assistant" OR "data entry" remote hire "south africa" 2025',
 
-    # CRM / Back office — matches existing experience
-    "CRM data administrator remote entry level",
-    "back office data administrator remote south africa",
-    "data capture clerk remote work from home",
-
-    # AI annotation — growing, zero interaction, fully remote
-    "AI data annotator remote south africa entry level",
-    "transcription data quality remote south africa",
-
-    # Bookkeeping / finance capture — structured, right/wrong tasks
-    "virtual bookkeeper remote entry level south africa",
-    "accounts receivable data capture remote",
-
-    # UK / UAE / AUS — timezone arbitrage, SA contractors accepted
-    "remote data entry contractor UK south africa based",
-    "remote admin data entry UAE hire south africa",
-    "remote data operations entry level Australia hire",
+    # Company job pages directly
+    '"careers" "data entry" remote "immediately" OR "urgently" apply',
+    '"job opening" "CRM" OR "data" remote "south africa" contractor',
+    'intitle:"hiring" "back office" remote "data" "entry level" email',
+    '"open position" "data capture" remote "apply" 2025 OR 2026',
+    '"remote role" "data entry" OR "admin" "south africa" contact hr',
 ]
 
 # ── ENTRY-LEVEL FILTER ────────────────────────────────────────────
@@ -449,12 +438,29 @@ async def result_to_job(result: dict) -> Optional[Job]:
 
     dm = re.search(r"https?://(?:www\.)?([^/\s]+)", url)
     if not dm:
+        log.info(f"[SKIP] No domain found in URL: {url[:60]}")
         return None
     domain = dm.group(1).lower()
 
-    # Skip job boards and aggregators
-    if any(b in domain for b in JOB_BOARD_DOMAINS):
-        return None
+    # If it's a job board, try to extract the real company from title/snippet
+    is_board = any(b in domain for b in JOB_BOARD_DOMAINS)
+    if is_board:
+        # Try to find a company name + derive domain from snippet
+        # Pattern: "Company Name - Data Entry | Indeed" or "Company Name hiring..."
+        company_match = re.search(r'^([A-Z][A-Za-z\s&]{2,30})\s*[-–|]', title)
+        if company_match:
+            company_name = company_match.group(1).strip()
+            # Derive likely domain
+            slug = re.sub(r'[^a-z0-9]', '', company_name.lower())
+            if len(slug) >= 3:
+                domain = f"{slug}.com"
+                log.info(f"[BOARD] Extracted company '{company_name}' → trying {domain}")
+            else:
+                log.info(f"[SKIP] Job board domain and no extractable company: {domain}")
+                return None
+        else:
+            log.info(f"[SKIP] Job board domain, no company extractable: {domain}")
+            return None
 
     # Entry-level filter
     if not is_entry_level(snip, title):
@@ -465,6 +471,7 @@ async def result_to_job(result: dict) -> Optional[Job]:
 
     emails = await get_emails(company, domain)
     if not emails:
+        log.info(f"[SKIP] No emails found for {domain}")
         return None
 
     return Job(
@@ -481,7 +488,7 @@ async def result_to_job(result: dict) -> Optional[Job]:
 def write_status(sent: int, skipped: int, error: str = None):
     save_json_file(CONFIG["status_file"], {
         "agent":       "kidbuu_job_agent",
-        "version":     "5.2",
+        "version":     "5.3",
         "last_run":    datetime.now(timezone.utc).isoformat(),
         "sent":        sent,
         "skipped":     skipped,
@@ -508,7 +515,7 @@ class RateTracker:
 # ── MAIN ──────────────────────────────────────────────────────────
 async def run():
     print("═" * 54)
-    print(f"  KIDBUU JOB AGENT v5.1 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"  KIDBUU JOB AGENT v5.3 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("═" * 54)
 
     # Startup checks

@@ -248,7 +248,7 @@ async def run_bot():
     log.info("[META] Waiting for broker connection...")
     await acct.wait_connected()
 
-    conn = acct.get_rpc_connection()
+    conn = acct.get_streaming_connection()
     await conn.connect()
 
     try:

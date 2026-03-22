@@ -1,13 +1,15 @@
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  NUCLEUS SUPERVISOR v5.0                                         ║
+║  NUCLEUS SUPERVISOR v5.1                                         ║
 ║  Runs every 5 minutes — always online, always ready             ║
-║  NEW v5.0:                                                       ║
-║    - Email inbox scanner (IMAP) every run                       ║
-║    - Responds to emails with subject "Nucleus"                  ║
-║    - Sends task transition emails with ETA                      ║
-║    - Private info guard: only 2 trusted addresses               ║
-║    - Task queue: Shopify → Design Agent → Vercel deploy         ║
+║  NEW v5.1 — SELF-HEALING ENGINE:                                ║
+║    - Reads last workflow run log via GitHub API                 ║
+║    - Detects errors in Job Agent / FX Agent output              ║
+║    - Asks Claude to generate a fix                              ║
+║    - Commits fixed file to GitHub via API                       ║
+║    - Triggers new workflow run automatically                    ║
+║    - Emails you: what broke, what was fixed, run triggered      ║
+║    - Tracks fix attempts to avoid infinite loops                ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -20,13 +22,21 @@ from email.header import decode_header
 
 # ── IDENTITY ──────────────────────────────────────────────────────
 OPERATOR  = os.getenv("OPERATOR_ALIAS", "Nucleus Operator")
-VERSION   = "5.0"
+VERSION   = "5.1"
 
 # ── SECRETS ───────────────────────────────────────────────────────
 ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
 GMAIL_FROM         = os.getenv("GMAIL_FROM", "")
 GMAIL_TO           = os.getenv("GMAIL_TO", "")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+GH_PAT             = os.getenv("GH_PAT", "")          # GitHub Personal Access Token
+
+# ── SELF-HEALING CONFIG ───────────────────────────────────────────
+GH_REPO            = "k1dbUU/fx-bot"
+GH_WORKFLOW_ID     = "fx_agent_workflow.yml"
+HEAL_LOG_FILE      = "nucleus_heal_log.json"
+MAX_FIX_ATTEMPTS   = 3    # stop after 3 attempts on same error to avoid loops
+HEAL_COOLDOWN_MIN  = 15   # wait 15min between fix attempts on same file
 
 # ── TRUSTED ADDRESSES (can request private info) ──────────────────
 # All other addresses get public-safe responses only
@@ -797,6 +807,380 @@ async def learn_overnight():
     send_alert("Overnight Lesson", f"{lesson}\n\n{days_until_end_of_march()} days to March deadline.\n— Supervisor v{VERSION}")
 
 # ═══════════════════════════════════════════════════════════════════
+# ── SELF-HEALING ENGINE v5.1 ───────────────────────────────────────
+# Reads workflow logs → detects errors → fixes code → redeploys
+# ═══════════════════════════════════════════════════════════════════
+
+GH_API = "https://api.github.com"
+
+def gh_headers() -> dict:
+    return {
+        "Authorization": f"token {GH_PAT}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+async def gh_get(path: str) -> dict:
+    """GET from GitHub API."""
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(f"{GH_API}{path}", headers=gh_headers())
+        r.raise_for_status()
+        return r.json()
+
+async def gh_put(path: str, body: dict) -> dict:
+    """PUT to GitHub API (create/update file)."""
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.put(f"{GH_API}{path}", headers=gh_headers(), json=body)
+        r.raise_for_status()
+        return r.json()
+
+async def gh_post(path: str, body: dict) -> dict:
+    """POST to GitHub API (trigger workflow etc)."""
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(f"{GH_API}{path}", headers=gh_headers(), json=body)
+        return r.json()
+
+async def get_last_workflow_run() -> dict:
+    """Get the most recent completed workflow run."""
+    try:
+        data = await gh_get(f"/repos/{GH_REPO}/actions/runs?per_page=5&status=completed")
+        runs = data.get("workflow_runs", [])
+        if runs:
+            return runs[0]
+    except Exception as e:
+        print(f"[HEAL] Failed to get workflow runs: {e}")
+    return {}
+
+async def get_run_logs(run_id: int) -> str:
+    """
+    Get the text logs for a specific workflow run.
+    Returns combined log text from all jobs.
+    """
+    try:
+        jobs_data = await gh_get(f"/repos/{GH_REPO}/actions/runs/{run_id}/jobs")
+        jobs = jobs_data.get("jobs", [])
+        all_logs = []
+        for job in jobs:
+            job_name = job.get("name", "")
+            steps = job.get("steps", [])
+            job_log = f"\n=== JOB: {job_name} ===\n"
+            for step in steps:
+                name = step.get("name", "")
+                conclusion = step.get("conclusion", "")
+                job_log += f"  STEP: {name} [{conclusion}]\n"
+            # Get actual log text
+            try:
+                log_url = f"/repos/{GH_REPO}/actions/jobs/{job['id']}/logs"
+                async with httpx.AsyncClient(timeout=30) as client:
+                    r = await client.get(
+                        f"{GH_API}{log_url}",
+                        headers=gh_headers(),
+                        follow_redirects=True
+                    )
+                    if r.status_code == 200:
+                        # Truncate to last 8000 chars — errors are usually at the end
+                        log_text = r.text[-8000:] if len(r.text) > 8000 else r.text
+                        job_log += log_text
+            except Exception:
+                pass
+            all_logs.append(job_log)
+        return "\n".join(all_logs)
+    except Exception as e:
+        print(f"[HEAL] Failed to get logs for run {run_id}: {e}")
+        return ""
+
+def extract_errors_from_log(log_text: str) -> list:
+    """
+    Parse workflow log text and extract meaningful errors.
+    Returns list of error dicts with: job, error_type, message, file_hint
+    """
+    errors = []
+    if not log_text:
+        return errors
+
+    # Patterns that indicate real problems
+    error_patterns = [
+        # Python exceptions
+        (r"(Traceback \(most recent call last\).*?)(?=\n\n|\Z)", "python_exception"),
+        (r"(\w+Error: .+)", "python_error"),
+        (r"(SyntaxError: .+)", "syntax_error"),
+        (r"(ImportError: .+)", "import_error"),
+        (r"(ModuleNotFoundError: .+)", "import_error"),
+        # GitHub Actions failures
+        (r"(Error: Process completed with exit code \d+)", "exit_code"),
+        # Agent-specific errors
+        (r"(\[ERROR\] .+)", "agent_error"),
+        (r"(\[FATAL\] .+)", "agent_fatal"),
+    ]
+
+    # Which file to look at based on job section
+    current_job = "unknown"
+    for line in log_text.split('\n'):
+        if "=== JOB:" in line:
+            if "Job Agent" in line:
+                current_job = "kidbuu_job_agent.py"
+            elif "FX Agent" in line:
+                current_job = "fx_agent_bot.py"
+            elif "Supervisor" in line:
+                current_job = "nucleus_supervisor.py"
+
+    for pattern, error_type in error_patterns:
+        matches = re.findall(pattern, log_text, re.DOTALL | re.MULTILINE)
+        for m in matches[:3]:  # max 3 of each type
+            msg = m.strip()[:500]
+            if len(msg) > 20:  # ignore very short matches
+                errors.append({
+                    "type":      error_type,
+                    "message":   msg,
+                    "file_hint": current_job,
+                })
+
+    return errors
+
+async def get_file_from_github(filepath: str) -> tuple:
+    """
+    Get file content and SHA from GitHub.
+    Returns (content_string, sha) or (None, None) on failure.
+    """
+    try:
+        data = await gh_get(f"/repos/{GH_REPO}/contents/{filepath}")
+        import base64
+        content = base64.b64decode(data["content"]).decode("utf-8")
+        return content, data["sha"]
+    except Exception as e:
+        print(f"[HEAL] Failed to get {filepath} from GitHub: {e}")
+        return None, None
+
+async def commit_file_to_github(filepath: str, content: str, sha: str, message: str) -> bool:
+    """
+    Commit a file to GitHub via API.
+    sha is required to update existing files.
+    Returns True on success.
+    """
+    try:
+        import base64
+        encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+        body = {
+            "message": message,
+            "content": encoded,
+            "sha":     sha,
+        }
+        await gh_put(f"/repos/{GH_REPO}/contents/{filepath}", body)
+        print(f"[HEAL] ✅ Committed {filepath}: {message}")
+        return True
+    except Exception as e:
+        print(f"[HEAL] Failed to commit {filepath}: {e}")
+        return False
+
+async def trigger_workflow() -> bool:
+    """Trigger the GitHub Actions workflow via API."""
+    try:
+        await gh_post(
+            f"/repos/{GH_REPO}/actions/workflows/{GH_WORKFLOW_ID}/dispatches",
+            {"ref": "main"}
+        )
+        print("[HEAL] ✅ Workflow triggered")
+        return True
+    except Exception as e:
+        print(f"[HEAL] Failed to trigger workflow: {e}")
+        return False
+
+async def generate_fix(file_content: str, errors: list, filename: str) -> str:
+    """
+    Ask Claude to fix the file based on the errors found.
+    Returns the fixed file content.
+    """
+    error_summary = "\n".join([
+        f"- [{e['type']}] {e['message'][:200]}"
+        for e in errors[:5]
+    ])
+
+    fixed = await call_claude(
+        system=f"""You are Nucleus Supervisor fixing a broken Python file.
+The file is {filename} running on GitHub Actions.
+You must return ONLY the complete fixed Python file content.
+No markdown, no explanation, no backticks. Just the raw Python code.
+Fix only what is broken. Do not change working logic.
+Keep all existing functionality intact.
+Ensure the file will run successfully on Ubuntu 24 with Python 3.11.""",
+        user=f"""FILE: {filename}
+ERRORS FROM LAST RUN:
+{error_summary}
+
+CURRENT FILE CONTENT:
+{file_content[:6000]}
+
+Return the complete fixed Python file. Raw code only.""",
+        max_tokens=4000,
+    )
+
+    # Strip any accidental markdown fences
+    fixed = re.sub(r'^```python\s*|^```\s*|```$', '', fixed.strip(), flags=re.MULTILINE)
+    return fixed.strip()
+
+def load_heal_log() -> dict:
+    return load_json(HEAL_LOG_FILE, {"attempts": {}, "last_fix": None, "total_fixes": 0})
+
+def save_heal_log(data: dict):
+    save_json(HEAL_LOG_FILE, data)
+
+def should_attempt_fix(filename: str, error_sig: str, heal_log: dict) -> bool:
+    """
+    Returns True if we should attempt a fix.
+    Prevents infinite loops by tracking attempts per error signature.
+    """
+    key = f"{filename}::{error_sig[:50]}"
+    attempts = heal_log.get("attempts", {})
+    entry = attempts.get(key, {"count": 0, "last_attempt": None})
+
+    if entry["count"] >= MAX_FIX_ATTEMPTS:
+        print(f"[HEAL] Max fix attempts ({MAX_FIX_ATTEMPTS}) reached for {filename} — skipping")
+        return False
+
+    if entry["last_attempt"]:
+        mins_ago = hours_since(entry["last_attempt"]) * 60
+        if mins_ago < HEAL_COOLDOWN_MIN:
+            print(f"[HEAL] Cooldown active for {filename} — {HEAL_COOLDOWN_MIN - int(mins_ago)}min remaining")
+            return False
+
+    return True
+
+def record_fix_attempt(filename: str, error_sig: str, heal_log: dict):
+    key = f"{filename}::{error_sig[:50]}"
+    attempts = heal_log.setdefault("attempts", {})
+    entry = attempts.get(key, {"count": 0, "last_attempt": None})
+    entry["count"] += 1
+    entry["last_attempt"] = utc_now()
+    attempts[key] = entry
+    heal_log["attempts"] = attempts
+    heal_log["last_fix"] = utc_now()
+    heal_log["total_fixes"] = heal_log.get("total_fixes", 0) + 1
+
+async def self_healing_cycle():
+    """
+    Main self-healing cycle. Runs every Supervisor loop.
+    1. Read last workflow run
+    2. If failed → extract errors
+    3. Get the broken file → generate fix → commit → trigger workflow
+    4. Email Nic what happened
+    """
+    if not GH_PAT:
+        print("[HEAL] GH_PAT not set — self-healing disabled")
+        return
+
+    print("[HEAL] Checking last workflow run...")
+
+    last_run = await get_last_workflow_run()
+    if not last_run:
+        print("[HEAL] No completed runs found")
+        return
+
+    conclusion = last_run.get("conclusion", "")
+    run_id     = last_run.get("id")
+    run_num    = last_run.get("run_number", "?")
+
+    if conclusion == "success":
+        print(f"[HEAL] Run #{run_num} was successful — nothing to fix")
+        return
+
+    if conclusion not in ["failure", "timed_out"]:
+        print(f"[HEAL] Run #{run_num} conclusion: {conclusion} — not a fixable failure")
+        return
+
+    print(f"[HEAL] ⚠ Run #{run_num} FAILED — reading logs...")
+
+    log_text = await get_run_logs(run_id)
+    if not log_text:
+        print("[HEAL] Could not read logs — skipping")
+        return
+
+    errors = extract_errors_from_log(log_text)
+    if not errors:
+        print(f"[HEAL] Run #{run_num} failed but no parseable errors found")
+        return
+
+    print(f"[HEAL] Found {len(errors)} error(s)")
+
+    # Determine which file to fix
+    file_to_fix = errors[0].get("file_hint", "kidbuu_job_agent.py")
+    # Override with more specific detection
+    for e in errors:
+        if "kidbuu_job_agent" in e["message"] or "job_agent" in e["message"].lower():
+            file_to_fix = "kidbuu_job_agent.py"
+            break
+        if "fx_agent_bot" in e["message"] or "fx_agent" in e["message"].lower():
+            file_to_fix = "fx_agent_bot.py"
+            break
+        if "nucleus_supervisor" in e["message"]:
+            file_to_fix = "nucleus_supervisor.py"
+            break
+
+    error_sig = errors[0]["message"][:50]
+    heal_log  = load_heal_log()
+
+    if not should_attempt_fix(file_to_fix, error_sig, heal_log):
+        return
+
+    print(f"[HEAL] 🔧 Attempting fix for {file_to_fix}...")
+
+    # Get current file content
+    file_content, file_sha = await get_file_from_github(file_to_fix)
+    if not file_content:
+        print(f"[HEAL] Could not retrieve {file_to_fix} from GitHub")
+        return
+
+    # Generate fix via Claude
+    fixed_content = await generate_fix(file_content, errors, file_to_fix)
+
+    if not fixed_content or len(fixed_content) < 100:
+        print("[HEAL] Fix generation failed or too short — skipping")
+        return
+
+    if not is_clean(fixed_content):
+        print("[HEAL] Fix contains leaked credentials — blocked")
+        return
+
+    # Commit the fix
+    error_preview = errors[0]["message"][:60].replace('\n', ' ')
+    commit_msg = f"heal: auto-fix {file_to_fix} — {error_preview}"
+    committed = await commit_file_to_github(file_to_fix, fixed_content, file_sha, commit_msg)
+
+    if not committed:
+        return
+
+    # Record the attempt
+    record_fix_attempt(file_to_fix, error_sig, heal_log)
+    save_heal_log(heal_log)
+
+    # Wait 10s for GitHub to process the commit, then trigger workflow
+    await asyncio.sleep(10)
+    triggered = await trigger_workflow()
+
+    # Email Nic a full report
+    error_list = "\n".join([f"  • [{e['type']}] {e['message'][:120]}" for e in errors[:3]])
+    status_line = "✅ Workflow re-triggered" if triggered else "⚠ Workflow trigger failed — check GitHub"
+    report = f"""NUCLEUS SELF-HEALING REPORT
+{'='*50}
+TIME:     {sast_now()}
+RUN:      #{run_num} (ID: {run_id})
+OUTCOME:  {conclusion.upper()}
+FILE:     {file_to_fix}
+ATTEMPTS: {heal_log['attempts'].get(f'{file_to_fix}::{error_sig[:50]}', {}).get('count', 1)}/{MAX_FIX_ATTEMPTS}
+
+ERRORS DETECTED:
+{error_list}
+
+FIX GENERATED BY CLAUDE: Yes ({len(fixed_content)} chars)
+COMMITTED TO GITHUB: {'Yes' if committed else 'No'}
+{status_line}
+
+Total auto-fixes to date: {heal_log.get('total_fixes', 1)}
+— Nucleus Supervisor v{VERSION}"""
+
+    send_alert(f"🔧 Auto-fixed {file_to_fix} — Run #{run_num}", report)
+    print(f"[HEAL] ✅ Fix complete — {file_to_fix} updated, workflow triggered, email sent")
+
+# ═══════════════════════════════════════════════════════════════════
 # ── MAIN ──────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════
 async def run():
@@ -811,7 +1195,10 @@ async def run():
     for sender, subject, body, msg_id in inbound:
         await handle_inbound_email(sender, subject, body, msg_id)
 
-    # 2. Check task queue transitions — send email if task changed
+    # 2. Self-healing cycle — read last run, fix errors, redeploy
+    await self_healing_cycle()
+
+    # 3. Check task queue transitions — send email if task changed
     await check_task_transitions()
 
     # 3. Read and handle War Room command

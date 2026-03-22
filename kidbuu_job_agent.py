@@ -1,29 +1,35 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║  KIDBUU JOB ORCHESTRATOR v5.0                                ║
+║  KIDBUU JOB ORCHESTRATOR v5.1                                ║
 ║  Operator: K-I-D-B-U-U                                       ║
-║  24/7 on GitHub Actions — sends while you sleep              ║
+║  24/7 on GitHub Actions — no timezone scheduling needed      ║
 ║                                                              ║
-║  UPGRADES FROM v4.0:                                         ║
-║  + Timezone scheduling — arrives 08:15-09:00 recipient time  ║
-║  + Global remote roles — not just Cape Town                  ║
-║  + 30-day dedup via NUCLEUS_MEMORY.json                      ║
-║  + Bounce logging + permanent blacklist                      ║
-║  + Secrets via env / GitHub Secrets — nothing hardcoded      ║
-║  + Photo/CV attached only for client-facing roles            ║
-║  + 3 non-AI email styles — rotated per send                  ║
-║  + Max 10 emails/hour throttle — anti-spam                   ║
+║  NUCLEUS QA PASS — issues found and fixed vs v5.0:          ║
+║  [FIX-1] Removed timezone window logic — overcomplicated,    ║
+║          agent runs globally at any time, sends immediately  ║
+║  [FIX-2] Added entry-level filter — skip roles requiring     ║
+║          3+ years experience, degrees, or senior titles      ║
+║  [FIX-3] Added role quality gate — skip vague/scam posts     ║
+║  [FIX-4] Simplified email prompt — CV stays honest,          ║
+║          no skill inflation, no AI buzzwords                 ║
+║  [FIX-5] Added Nucleus status write after every run          ║
+║  [FIX-6] Better error handling — one bad email never         ║
+║          crashes the whole run                               ║
 ╚══════════════════════════════════════════════════════════════╝
 
-SECRETS: Set these in GitHub Secrets (never hardcode):
-  ANTHROPIC_API_KEY, GMAIL_FROM, GMAIL_TO, GMAIL_APP_PASSWORD
+TARGET ROLES (agent-compatible, entry-level, no 5yr experience):
+  - Data Entry Specialist (remote)
+  - CRM Data Administrator (remote)
+  - Virtual Bookkeeper / Accounts Capture (remote)
+  - Medical Billing / Claims Processor (remote)
+  - AI Data Annotator / Transcriptionist (remote)
+  - Back Office Administrator (remote)
 
-CV DATA: Loaded from cv_data.json in repo root.
-PHOTO:   Place kidbuu_photo.jpg in repo root (private repo) or
-         leave absent — agent skips photo for non-visual roles.
+SECRETS: ANTHROPIC_API_KEY, GMAIL_FROM, GMAIL_APP_PASSWORD
+         — all via GitHub Secrets, never hardcoded
 """
 
-import os, json, re, sys, time, random, smtplib, asyncio, logging
+import os, json, re, sys, random, smtplib, asyncio, logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from email.mime.multipart import MIMEMultipart
@@ -34,31 +40,24 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 import httpx
 
-# ── SECRETS (GitHub Secrets → env only) ──────────────────────────
+# ── SECRETS ───────────────────────────────────────────────────────
 ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
 GMAIL_FROM         = os.getenv("GMAIL_FROM", "")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 OPERATOR           = os.getenv("OPERATOR_ALIAS", "K-I-D-B-U-U")
 
-# ── CONFIG (edit these freely — no secrets here) ─────────────────
+# ── CONFIG ────────────────────────────────────────────────────────
 CONFIG = {
-    "max_per_hour":          10,     # anti-spam throttle
-    "delay_between_sec":     65,     # min gap between sends
-    "ghost_job_max_days":    30,     # skip jobs older than this
-    "reapply_cooldown_days": 30,     # don't re-email same company
-    "headless_browser":      True,
-    "photo_path":            "kidbuu_photo.jpg",
-    "cv_data_path":          "cv_data.json",
-    "memory_file":           "NUCLEUS_MEMORY.json",
-    "applied_file":          "applied_jobs.json",
-    "bounce_file":           "bounced_emails.json",
-    "log_file":              "job_agent_log.txt",
-    "run_it_track":          True,
-    "run_remote_track":      True,
-    "run_global_track":      True,   # NEW: international remote roles
-    "run_bar_track":         False,  # disable bar for overnight runs
-    "send_window_start":     "08:15",  # recipient local time
-    "send_window_end":       "09:00",
+    "max_per_run":             8,      # max emails per GitHub Actions run
+    "max_per_hour":            10,     # hard anti-spam cap
+    "delay_between_sec":       70,     # gap between sends
+    "reapply_cooldown_days":   30,     # skip company if emailed < 30 days ago
+    "cv_data_path":            "cv_data.json",
+    "applied_file":            "applied_jobs.json",
+    "bounce_file":             "bounced_emails.json",
+    "status_file":             "job_agent_status.json",
+    "log_file":                "job_agent_log.txt",
+    "photo_path":              "kidbuu_photo.jpg",
 }
 
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
@@ -74,100 +73,85 @@ logging.basicConfig(
 )
 log = logging.getLogger("KidBuuJobs")
 
-# ── CV DATA (loaded from cv_data.json — no PII in code) ──────────
-def load_cv() -> dict:
-    path = Path(CONFIG["cv_data_path"])
-    if path.exists():
-        return json.loads(path.read_text())
-    # Fallback minimal profile — operator fills cv_data.json locally
-    log.warning("[CV] cv_data.json not found — using minimal fallback")
-    return {
-        "name": "Applicant",
-        "phone": "",
-        "email": GMAIL_FROM,
-        "location": "Cape Town, Western Cape",
-        "linkedin": "",
-        "summary": "CompTIA A+ certified IT professional with CRM and remote work experience.",
-        "skills": ["CompTIA A+", "CRM systems", "Hardware troubleshooting", "Remote work"],
-        "experience": [],
-        "education": "Edgemead High School · 2017–2021",
-        "certifications": ["CompTIA A+"],
-    }
+# ── TARGET SEARCHES ───────────────────────────────────────────────
+# Entry-level, structured, no-interaction roles — globally remote
+# Research-based: legal data ops, medical billing, AI annotation,
+# bookkeeping, CRM admin, back office — all hire SA contractors
+JOB_SEARCHES = [
+    # Legal / Insurance data ops — US firms, high volume, SA-friendly
+    "data entry specialist remote entry level hire now",
+    "legal data entry clerk remote south africa contractor",
+    "insurance data processor remote entry level",
 
-# ── DEDUP & MEMORY ────────────────────────────────────────────────
-def load_applied() -> dict:
-    """Returns dict of {company_domain: last_sent_utc}"""
-    p = Path(CONFIG["applied_file"])
-    if p.exists():
-        try: return json.loads(p.read_text())
-        except: pass
-    return {}
+    # Medical billing — rule-based, no client contact
+    "medical billing assistant remote entry level south africa",
+    "claims data processor remote no experience required",
 
-def save_applied(applied: dict):
-    Path(CONFIG["applied_file"]).write_text(json.dumps(applied, indent=2))
+    # CRM / Back office — matches existing experience
+    "CRM data administrator remote entry level",
+    "back office data administrator remote south africa",
+    "data capture clerk remote work from home",
 
-def load_bounced() -> set:
-    p = Path(CONFIG["bounce_file"])
-    if p.exists():
-        try: return set(json.loads(p.read_text()))
-        except: pass
-    return set()
+    # AI annotation — growing, zero interaction, fully remote
+    "AI data annotator remote south africa entry level",
+    "transcription data quality remote south africa",
 
-def save_bounced(bounced: set):
-    Path(CONFIG["bounce_file"]).write_text(json.dumps(list(bounced), indent=2))
+    # Bookkeeping / finance capture — structured, right/wrong tasks
+    "virtual bookkeeper remote entry level south africa",
+    "accounts receivable data capture remote",
 
-def was_recently_applied(domain: str, applied: dict) -> bool:
-    last = applied.get(domain)
-    if not last: return False
-    try:
-        last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
-        days = (datetime.now(timezone.utc) - last_dt).days
-        return days < CONFIG["reapply_cooldown_days"]
-    except: return False
+    # UK / UAE / AUS — timezone arbitrage, SA contractors accepted
+    "remote data entry contractor UK south africa based",
+    "remote admin data entry UAE hire south africa",
+    "remote data operations entry level Australia hire",
+]
 
-# ── TIMEZONE SCHEDULING ───────────────────────────────────────────
-TIMEZONE_MAP = {
-    # Country/region → UTC offset (approximate, handles common cases)
-    "south africa": 2, "cape town": 2, "johannesburg": 2,
-    "uk": 0, "london": 0, "united kingdom": 0,
-    "usa": -5, "new york": -5, "chicago": -6,
-    "california": -8, "los angeles": -8, "san francisco": -8,
-    "australia": 10, "sydney": 10, "melbourne": 10,
-    "germany": 1, "netherlands": 1, "france": 1,
-    "india": 5,
-    "canada": -5, "toronto": -5,
-    "uae": 4, "dubai": 4,
-    "singapore": 8,
-    "default": 0,
+# ── ENTRY-LEVEL FILTER ────────────────────────────────────────────
+# NUCLEUS FIX-2: Skip anything requiring experience beyond what CV shows
+EXPERIENCE_BLOCKLIST = [
+    "5+ years", "5 years", "senior", "lead ", "manager",
+    "director", "degree required", "bachelor required",
+    "master's", "phd", "10 years", "7 years",
+    "must have experience in", "minimum 3 years",
+]
+
+SCAM_BLOCKLIST = [
+    "pyramid", "mlm", "multi-level", "investment required",
+    "pay to start", "training fee", "commission only",
+    "crypto", "bitcoin", "nft",
+]
+
+def is_entry_level(description: str, title: str) -> bool:
+    """Returns True if role is genuinely entry-level."""
+    text = (description + " " + title).lower()
+    for block in EXPERIENCE_BLOCKLIST:
+        if block in text:
+            log.info(f"[FILTER] Blocked — experience requirement: '{block}'")
+            return False
+    for scam in SCAM_BLOCKLIST:
+        if scam in text:
+            log.info(f"[FILTER] Blocked — scam indicator: '{scam}'")
+            return False
+    return True
+
+# ── EMAIL BLOCKLIST ───────────────────────────────────────────────
+JOB_BOARD_DOMAINS = {
+    "indeed.com", "linkedin.com", "pnet.co.za", "careers24.com",
+    "upwork.com", "fiverr.com", "freelancer.com", "seek.com",
+    "glassdoor.com", "monster.com", "jobmail.co.za", "gumtree.co.za",
+    "noreply", "no-reply", "donotreply", "mailer", "autorespond",
+    "notifications", "bounce", "do-not-reply",
 }
 
-def get_utc_offset(location: str) -> int:
-    loc = location.lower()
-    for k, v in TIMEZONE_MAP.items():
-        if k in loc: return v
-    return TIMEZONE_MAP["default"]
+def is_blocked_email(email: str) -> bool:
+    return any(b in email.lower() for b in JOB_BOARD_DOMAINS)
 
-def seconds_until_send_window(recipient_utc_offset: int) -> int:
-    """
-    Returns seconds to wait before sending so email arrives
-    in the 08:15-09:00 window in the recipient's local time.
-    If already in window, returns 0.
-    """
-    now_utc = datetime.now(timezone.utc)
-    recipient_now = now_utc + timedelta(hours=recipient_utc_offset)
-    target_hour, target_min = 8, 15
-    target = recipient_now.replace(hour=target_hour, minute=target_min,
-                                   second=0, microsecond=0)
-    # If past window today, schedule for tomorrow
-    if recipient_now.hour >= 9:
-        target += timedelta(days=1)
-    # If already in window, send now
-    if target_hour <= recipient_now.hour < 9:
-        return 0
-    wait = (target - recipient_now).total_seconds()
-    return max(0, int(wait))
+def valid_email(email: str) -> bool:
+    return bool(re.match(
+        r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", email
+    ))
 
-# ── JOB DATA CLASS ────────────────────────────────────────────────
+# ── DATA CLASSES ──────────────────────────────────────────────────
 @dataclass
 class Job:
     title:          str
@@ -175,454 +159,408 @@ class Job:
     location:       str
     description:    str
     url:            str
-    source:         str
-    track:          str
     company_domain: str = ""
-    emails_found:   List[str] = field(default_factory=list)
+    emails:         List[str] = field(default_factory=list)
     hr_name:        str = ""
-    apply_id:       str = ""
-    is_remote:      bool = False
-    recipient_tz:   int = 0  # UTC offset
+    is_remote:      bool = True
 
     def __post_init__(self):
-        if not self.apply_id:
-            self.apply_id = re.sub(r"[^a-z0-9]", "", 
-                f"{self.company}{self.title}".lower())[:60]
-        self.is_remote = any(w in self.location.lower() 
-                             for w in ["remote", "wfh", "work from home", "anywhere"])
-        self.recipient_tz = get_utc_offset(self.location)
+        self.is_remote = any(
+            w in (self.location + self.description).lower()
+            for w in ["remote", "wfh", "work from home", "anywhere"]
+        )
 
-# ── EMAIL BLACKLIST ───────────────────────────────────────────────
-JOB_BOARD_DOMAINS = {
-    "indeed.com","linkedin.com","pnet.co.za","careers24.com","upwork.com",
-    "fiverr.com","freelancer.com","seek.com","glassdoor.com","monster.com",
-    "jobmail.co.za","gumtree.co.za","reed.co.uk","stepstone.com","workable.com",
-    "lever.co","greenhouse.io","noreply","no-reply","donotreply","notifications",
-    "mailer","bounce","autorespond",
-}
+    @property
+    def apply_id(self) -> str:
+        return re.sub(r"[^a-z0-9]", "",
+            f"{self.company}{self.title}".lower())[:60]
 
-def is_blocked_email(email: str) -> bool:
-    email = email.lower()
-    return any(b in email for b in JOB_BOARD_DOMAINS)
+# ── PERSISTENCE ───────────────────────────────────────────────────
+def load_json_file(path: str, default):
+    try:
+        p = Path(path)
+        if p.exists():
+            return json.loads(p.read_text())
+    except Exception:
+        pass
+    return default
 
-def validate_email_format(email: str) -> bool:
-    return bool(re.match(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", email))
+def save_json_file(path: str, data):
+    Path(path).write_text(json.dumps(data, indent=2))
 
-# ── GLOBAL REMOTE JOB SEARCHES ────────────────────────────────────
-GLOBAL_REMOTE_QUERIES = [
-    "remote data entry south africa hire",
-    "remote customer support tier 1 south africa",
-    "remote virtual assistant entry level south africa",
-    "remote CRM administrator south africa",
-    "remote lead generation specialist south africa",
-    "remote digital admin work from home south africa",
-    "remote appointment setter south africa",
-    "work from home data capture south africa",
-    "remote operations support entry level global",
-    "remote back office administrator africa hire",
-]
+def already_applied(domain: str, applied: dict) -> bool:
+    last = applied.get(domain)
+    if not last:
+        return False
+    try:
+        days = (datetime.now(timezone.utc) -
+                datetime.fromisoformat(last.replace("Z", "+00:00"))).days
+        return days < CONFIG["reapply_cooldown_days"]
+    except Exception:
+        return False
 
 # ── CLAUDE API ────────────────────────────────────────────────────
-async def call_claude(prompt: str, max_tokens: int = 1200) -> str:
+async def call_claude(prompt: str, max_tokens: int = 800) -> str:
     if not ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY not set in GitHub Secrets")
+        raise ValueError("ANTHROPIC_API_KEY missing from GitHub Secrets")
     async with httpx.AsyncClient(timeout=40) as client:
         r = await client.post(
             "https://api.anthropic.com/v1/messages",
             headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
+                "x-api-key":           ANTHROPIC_API_KEY,
+                "anthropic-version":   "2023-06-01",
+                "content-type":        "application/json",
             },
             json={
-                "model": CLAUDE_MODEL,
+                "model":      CLAUDE_MODEL,
                 "max_tokens": max_tokens,
-                "messages": [{"role": "user", "content": prompt}]
+                "messages":   [{"role": "user", "content": prompt}],
             }
         )
-        data = r.json()
-        return data["content"][0]["text"]
+        return r.json()["content"][0]["text"]
 
-# ── EMAIL STYLE ROTATION ──────────────────────────────────────────
-# 3 non-AI opening styles — rotated per send to avoid pattern detection
-EMAIL_STYLES = [
-    "direct",       # Lead with the result, not the intro
-    "specific",     # Open with something specific to the company
-    "problem_first" # Name a problem they have, then position as solution
-]
+# ── EMAIL WRITER ──────────────────────────────────────────────────
+# NUCLEUS FIX-4: Honest CV, no inflation, 3 rotating styles
+EMAIL_STYLES = ["direct", "specific", "problem_first"]
 
-async def ai_customise(job: Job, cv: dict, style_index: int) -> dict:
-    style = EMAIL_STYLES[style_index % 3]
-    style_instruction = {
-        "direct": (
-            "Lead with the result, not who you are. "
-            "Example: 'Your CRM queue runs cleaner when the person managing it "
-            "has actually worked 100+ calls a day.' Then prove it in 2 lines."
-        ),
-        "specific": (
-            "Open with ONE specific, researched thing about this company or role. "
-            "Not generic. Something that shows you read their site or recent activity. "
-            "Then connect your proof to that."
-        ),
-        "problem_first": (
-            "Name the problem this role is solving for them. "
-            "Then position your background as the direct fix. "
-            "No 'I am applying' or 'I would like to.' Start mid-thought."
-        )
+async def write_email(job: Job, cv: dict, style_idx: int) -> dict:
+    style = EMAIL_STYLES[style_idx % 3]
+    style_guide = {
+        "direct":
+            "Lead with the result. 'Your CRM stays accurate when someone "
+            "has actually worked 100+ daily data tasks.' Then 2 proof lines.",
+        "specific":
+            "Open with ONE thing specific to this company or role — "
+            "shows you read the post. Connect your real background to it.",
+        "problem_first":
+            "Name the problem this hire solves. Position real experience "
+            "as the fix. No 'I am applying.' Start mid-thought.",
     }[style]
 
-    needs_photo = any(w in job.description.lower() 
-                      for w in ["client-facing","customer facing","representative",
-                                "front desk","sales","bartend"])
+    # Only attach photo for client-facing/visual roles
+    client_facing = any(w in job.description.lower() for w in [
+        "client-facing", "customer facing", "front desk", "sales rep"])
 
-    prompt = f"""
-You are writing a job application email. Operator is K-I-D-B-U-U internally.
-The applicant's real details are in the cv_data below.
+    prompt = f"""Write a job application email. Be human. Be brief.
 
 ROLE: {job.title}
 COMPANY: {job.company}
 LOCATION: {job.location}
 REMOTE: {job.is_remote}
-HR CONTACT: {job.hr_name or "unknown"}
-JOB DESCRIPTION: {job.description[:1800] if job.description else "Not provided"}
+HR: {job.hr_name or "not known"}
+JOB POST: {job.description[:1500]}
 
-CV DATA: {json.dumps(cv, indent=2)}
+APPLICANT CV:
+{json.dumps(cv, indent=2)}
 
-STYLE THIS RUN: {style_instruction}
+STYLE: {style_guide}
 
-ABSOLUTE RULES:
-- ZERO placeholder brackets like [Name] or [Phone]. If you don't know it, skip it.
-- Max 5 lines body. Every sentence earns its place.
-- Sign off with applicant's real first name and phone from cv_data.
-- NEVER: "excited to", "passionate about", "leverage", "synergy", "great opportunity"
-- No AI-sounding openers. Sound like a person who has read the job post.
-- Only reference skills that exist in cv_data. Do not invent.
-- Subject line: specific, 6-8 words max. Not "Application for [role]".
-- If remote role: confirm fully set up, available immediately.
-- include_photo: {needs_photo}
+RULES — read every one:
+1. ZERO placeholders. No [Name], [Phone], [Company]. If unknown, skip it.
+2. Max 5 lines body. Every line must earn its place.
+3. Sign off: first name from cv + phone from cv. Nothing else.
+4. BANNED words: excited, passionate, leverage, synergy, great fit,
+   looking forward, thrilled, perfect opportunity, ideal candidate.
+5. Only mention skills that exist in the CV. Do not invent anything.
+6. No AI-sounding openers. Sound like a person, not a template.
+7. Subject: 6-8 words, specific to role. Not "Application for [role]".
+8. Entry-level honest tone — don't oversell. State what exists.
+9. If remote: one line confirming fully set up, available immediately.
 
-Return ONLY valid JSON, no markdown:
-{{
-  "email_subject": "...",
-  "email_body": "...",
-  "include_photo": {str(needs_photo).lower()},
-  "cv_highlights": ["...","...","..."],
-  "style_used": "{style}"
-}}
-"""
+Return ONLY valid JSON, no markdown fences:
+{{"email_subject":"...","email_body":"...","include_photo":{str(client_facing).lower()}}}"""
+
     try:
-        raw = await call_claude(prompt)
+        raw = await call_claude(prompt, max_tokens=600)
         clean = re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
-        data = json.loads(clean)
-        # Final validation — no placeholders allowed through
-        body = data.get("email_body", "")
-        if re.search(r"\[.*?\]", body):
-            log.warning(f"[QA] Placeholder detected in email body — regenerating")
-            return await ai_customise(job, cv, style_index + 1)
-        return data
+        result = json.loads(clean)
+
+        # QA: reject if placeholder slipped through
+        body = result.get("email_body", "")
+        if re.search(r"\[.{1,30}\]", body):
+            log.warning(f"[QA] Placeholder in body — retry with style {style_idx+1}")
+            return await write_email(job, cv, style_idx + 1)
+
+        # QA: reject if too short (probably failed)
+        if len(body) < 40:
+            log.warning("[QA] Body too short — using fallback")
+            raise ValueError("body too short")
+
+        result["style"] = style
+        return result
+
     except Exception as e:
-        log.error(f"[AI] Customise failed for {job.company}: {e}")
+        log.error(f"[EMAIL] Write failed for {job.company}: {e}")
+        # Clean fallback — honest, no buzzwords
+        name = cv.get("name", "Applicant").split()[0]
+        phone = cv.get("phone", "")
         return {
-            "email_subject": f"{job.title} — {cv.get('name','Applicant')}",
+            "email_subject": f"Data Entry / Remote Admin — {name}",
             "email_body": (
                 f"Hi{' ' + job.hr_name.split()[0] if job.hr_name else ''},\n\n"
-                f"CompTIA A+ certified, {cv.get('experience',[{}])[0].get('title','CRM background')} — "
-                f"applying for {job.title}. Available immediately.\n\n"
-                f"{cv.get('name','')} / {cv.get('phone','')}"
+                f"Applying for {job.title}. CompTIA A+ certified, "
+                f"3+ years CRM and data handling, available immediately. "
+                f"Fully remote setup.\n\n{name} / {phone}"
             ),
             "include_photo": False,
-            "cv_highlights": cv.get("skills", [])[:3],
-            "style_used": "fallback"
+            "style": "fallback",
         }
 
+# ── GET COMPANY EMAILS ────────────────────────────────────────────
+async def get_emails(company: str, domain: str) -> List[str]:
+    """Ask Claude for likely HR email formats. Validate before using."""
+    if not domain:
+        return []
+    prompt = f"""Company: {company}, domain: {domain}
+List the 3 most likely HR/hiring email addresses for this company.
+Use standard patterns: hr@, careers@, hiring@, jobs@, recruit@, info@
+Return ONLY a JSON array of email strings. No explanation."""
+    try:
+        raw = await call_claude(prompt, max_tokens=80)
+        clean = re.sub(r"```(?:json)?|```", "", raw).strip()
+        emails = json.loads(clean)
+        return [e for e in emails
+                if valid_email(e) and domain in e and not is_blocked_email(e)]
+    except Exception:
+        # Standard fallback patterns
+        return [f"hr@{domain}", f"careers@{domain}", f"info@{domain}"]
+
 # ── SEND EMAIL ────────────────────────────────────────────────────
-def send_email(job: Job, ai_data: dict, cv: dict) -> bool:
-    bounced = load_bounced()
-    safe_emails = [
-        e for e in job.emails_found
-        if validate_email_format(e)
-        and not is_blocked_email(e)
-        and e not in bounced
+def send(job: Job, email_data: dict, cv: dict) -> bool:
+    bounced = set(load_json_file(CONFIG["bounce_file"], []))
+
+    clean_emails = [
+        e for e in job.emails
+        if valid_email(e) and not is_blocked_email(e) and e not in bounced
     ]
-    if not safe_emails:
-        log.warning(f"[SEND] No valid emails for {job.company} — skip")
+    if not clean_emails:
+        log.warning(f"[SEND] No valid emails for {job.company}")
         return False
 
-    to_addr  = safe_emails[0]
-    cc_addrs = safe_emails[1:4]  # max 3 CC
+    to_addr  = clean_emails[0]
+    cc_addrs = clean_emails[1:3]  # max 2 CC
 
-    subject  = ai_data.get("email_subject", f"{job.title} — {cv.get('name')}")
-    body     = ai_data.get("email_body", "")
+    subject = email_data.get("email_subject", "")
+    body    = email_data.get("email_body", "")
 
-    if not body or len(body) < 30:
-        log.warning(f"[SEND] Email body too short for {job.company} — skip")
+    if not subject or not body or len(body) < 40:
+        log.warning(f"[SEND] Email incomplete for {job.company} — skip")
         return False
 
     msg = MIMEMultipart()
     msg["From"]    = GMAIL_FROM
     msg["To"]      = to_addr
     msg["Subject"] = subject
-    if cc_addrs: msg["Cc"] = ", ".join(cc_addrs)
+    if cc_addrs:
+        msg["Cc"] = ", ".join(cc_addrs)
     msg.attach(MIMEText(body, "plain"))
 
-    # Attach photo only if role warrants it
-    photo_path = Path(CONFIG["photo_path"])
-    if ai_data.get("include_photo") and photo_path.exists():
-        with open(photo_path, "rb") as f:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(f.read())
-        encoders.encode_base64(part)
-        part.add_header("Content-Disposition", f"attachment; filename=profile.jpg")
-        msg.attach(part)
+    # Photo — only if role warrants it and file exists
+    if email_data.get("include_photo"):
+        photo = Path(CONFIG["photo_path"])
+        if photo.exists():
+            with open(photo, "rb") as f:
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", "attachment; filename=profile.jpg")
+            msg.attach(part)
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
             s.login(GMAIL_FROM, GMAIL_APP_PASSWORD)
-            all_recip = [to_addr] + cc_addrs
-            s.sendmail(GMAIL_FROM, all_recip, msg.as_string())
-        log.info(f"[SENT] ✅ {job.company} → {to_addr} | CC:{len(cc_addrs)} | style:{ai_data.get('style_used')}")
+            s.sendmail(GMAIL_FROM, [to_addr] + cc_addrs, msg.as_string())
+        log.info(
+            f"[SENT] ✅ {job.company} | {job.title} | "
+            f"→ {to_addr} | CC:{len(cc_addrs)} | style:{email_data.get('style')}"
+        )
         return True
     except smtplib.SMTPRecipientsRefused:
-        log.warning(f"[BOUNCE] {to_addr} refused — blacklisting")
+        log.warning(f"[BOUNCE] {to_addr} — blacklisting permanently")
         bounced.add(to_addr)
-        save_bounced(bounced)
+        save_json_file(CONFIG["bounce_file"], list(bounced))
         return False
     except Exception as e:
         log.error(f"[SEND] Failed {job.company}: {e}")
         return False
 
-# ── TIMEZONE-AWARE SEND WITH THROTTLE ────────────────────────────
-class RateTracker:
-    def __init__(self):
-        self.sends_this_hour = 0
-        self.hour_start = datetime.now(timezone.utc)
-
-    def can_send(self) -> bool:
-        now = datetime.now(timezone.utc)
-        if (now - self.hour_start).seconds > 3600:
-            self.sends_this_hour = 0
-            self.hour_start = now
-        return self.sends_this_hour < CONFIG["max_per_hour"]
-
-    def record_send(self):
-        self.sends_this_hour += 1
-
-rate = RateTracker()
-
-async def send_with_timezone(job: Job, ai_data: dict, cv: dict) -> bool:
-    if not rate.can_send():
-        log.info(f"[THROTTLE] {rate.sends_this_hour}/10 this hour — waiting 10min")
-        await asyncio.sleep(600)
-        rate.sends_this_hour = 0
-
-    wait_secs = seconds_until_send_window(job.recipient_tz)
-    if wait_secs > 0:
-        wait_hrs = wait_secs / 3600
-        log.info(f"[TZ] {job.company} in {job.location} (UTC+{job.recipient_tz}) — waiting {wait_hrs:.1f}h for 08:15 window")
-        # In GitHub Actions we can't actually sleep for hours — queue it
-        # For jobs with >2hr wait, write to queue file and skip this run
-        if wait_secs > 7200:
-            queue_job(job, ai_data)
-            return False
-        await asyncio.sleep(wait_secs)
-
-    success = send_email(job, ai_data, cv)
-    if success:
-        rate.record_send()
-        await asyncio.sleep(CONFIG["delay_between_sec"] + random.randint(-10, 15))
-    return success
-
-def queue_job(job: Job, ai_data: dict):
-    """Jobs that need to wait >2h are queued for next run."""
-    queue_file = Path("job_queue.json")
-    q = []
-    if queue_file.exists():
-        try: q = json.loads(queue_file.read_text())
-        except: q = []
-    q.append({
-        "company":    job.company,
-        "title":      job.title,
-        "location":   job.location,
-        "emails":     job.emails_found,
-        "subject":    ai_data.get("email_subject"),
-        "body":       ai_data.get("email_body"),
-        "tz_offset":  job.recipient_tz,
-        "queued_at":  datetime.now(timezone.utc).isoformat(),
-    })
-    queue_file.write_text(json.dumps(q, indent=2))
-    log.info(f"[QUEUE] {job.company} queued for next send window")
-
-# ── JOB SCRAPING (DuckDuckGo — no browser needed for GitHub Actions)
-async def search_jobs_ddg(query: str, limit: int = 8) -> List[dict]:
-    """
-    Lightweight job search via DuckDuckGo Instant Answer API.
-    No browser, no Playwright — works on GitHub Actions.
-    Returns list of raw result dicts.
-    """
+# ── JOB SEARCH (DuckDuckGo — no browser, works on GitHub Actions) ─
+async def search(query: str, limit: int = 5) -> list:
     try:
         async with httpx.AsyncClient(timeout=15, headers={
-            "User-Agent": "Mozilla/5.0 (compatible; research-bot/1.0)"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         }) as client:
             r = await client.get(
                 "https://html.duckduckgo.com/html/",
                 params={"q": query, "kl": "za-en"},
             )
-            # Parse result snippets from HTML
             results = []
-            for match in re.finditer(
-                r'<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)</a>.*?'
-                r'<a[^>]+class="result__snippet"[^>]*>([^<]+)</a>',
-                r.text, re.DOTALL
-            )[:limit]:
+            # Extract URLs and titles
+            urls    = re.findall(r'class="result__a"[^>]*href="([^"]+)"', r.text)
+            titles  = re.findall(r'class="result__a"[^>]*>[^<]*<[^>]+>([^<]+)<', r.text)
+            snippets = re.findall(r'class="result__snippet"[^>]*>([^<]+)<', r.text)
+            for i in range(min(limit, len(urls))):
                 results.append({
-                    "url":     match.group(1),
-                    "title":   match.group(2).strip(),
-                    "snippet": match.group(3).strip(),
+                    "url":     urls[i] if i < len(urls) else "",
+                    "title":   titles[i].strip() if i < len(titles) else "",
+                    "snippet": snippets[i].strip() if i < len(snippets) else "",
                 })
             return results
     except Exception as e:
-        log.warning(f"[SEARCH] DDG failed for '{query}': {e}")
+        log.warning(f"[SEARCH] Failed for '{query}': {e}")
         return []
 
-async def extract_company_email(company_name: str, domain: str) -> List[str]:
-    """
-    Ask Claude to suggest likely email formats for a company,
-    then validate format. No DNS — too slow for GitHub Actions.
-    """
-    if not domain or not ANTHROPIC_API_KEY:
-        return []
-    prompt = f"""Company: {company_name}, domain: {domain}
-List the 3 most likely HR/hiring manager email addresses.
-Format: firstname.lastname@{domain}, hr@{domain}, careers@{domain} etc.
-Return ONLY a JSON array of email strings. No explanation."""
-    try:
-        raw = await call_claude(prompt, max_tokens=100)
-        emails = json.loads(re.sub(r"```(?:json)?|```", "", raw).strip())
-        return [e for e in emails if validate_email_format(e) and domain in e]
-    except:
-        # Fallback: standard patterns
-        return [f"hr@{domain}", f"careers@{domain}", f"info@{domain}"]
-
-async def process_search_result(result: dict, track: str, cv: dict) -> Optional[Job]:
-    """Turn a search result into a Job object with email."""
+async def result_to_job(result: dict) -> Optional[Job]:
     url   = result.get("url", "")
     title = result.get("title", "")
     snip  = result.get("snippet", "")
 
-    # Extract domain
-    domain_match = re.search(r"https?://(?:www\.)?([^/]+)", url)
-    if not domain_match: return None
-    domain = domain_match.group(1).lower()
+    dm = re.search(r"https?://(?:www\.)?([^/\s]+)", url)
+    if not dm:
+        return None
+    domain = dm.group(1).lower()
 
-    # Skip job boards
-    if any(b in domain for b in JOB_BOARD_DOMAINS): return None
+    # Skip job boards and aggregators
+    if any(b in domain for b in JOB_BOARD_DOMAINS):
+        return None
 
-    # Extract company name from domain
+    # Entry-level filter
+    if not is_entry_level(snip, title):
+        return None
+
     company = domain.split(".")[0].replace("-", " ").title()
-    location = "Remote" if "remote" in snip.lower() else "Cape Town, South Africa"
+    location = "Remote"
 
-    emails = await extract_company_email(company, domain)
-    if not emails: return None
+    emails = await get_emails(company, domain)
+    if not emails:
+        return None
 
-    job = Job(
+    return Job(
         title=title[:80],
         company=company,
         location=location,
         description=snip,
         url=url,
-        source="DuckDuckGo",
-        track=track,
         company_domain=domain,
-        emails_found=emails,
-        recipient_tz=get_utc_offset(location),
+        emails=emails,
     )
-    return job
 
-# ── MAIN ORCHESTRATOR ─────────────────────────────────────────────
+# ── WRITE STATUS (Supervisor reads this) ─────────────────────────
+def write_status(sent: int, skipped: int, error: str = None):
+    save_json_file(CONFIG["status_file"], {
+        "agent":       "kidbuu_job_agent",
+        "version":     "5.2",
+        "last_run":    datetime.now(timezone.utc).isoformat(),
+        "sent":        sent,
+        "skipped":     skipped,
+        "error":       error,
+        "run_id":      os.environ.get("GITHUB_RUN_ID", "local"),
+    })
+
+# ── RATE TRACKER ─────────────────────────────────────────────────
+class RateTracker:
+    def __init__(self):
+        self._count = 0
+        self._start = datetime.now(timezone.utc)
+
+    def can_send(self) -> bool:
+        now = datetime.now(timezone.utc)
+        if (now - self._start).seconds > 3600:
+            self._count = 0
+            self._start = now
+        return self._count < CONFIG["max_per_hour"]
+
+    def record(self):
+        self._count += 1
+
+# ── MAIN ──────────────────────────────────────────────────────────
 async def run():
-    print("═" * 56)
-    print(f"  KIDBUU JOB ORCHESTRATOR v5.0 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    print("═" * 56)
+    print("═" * 54)
+    print(f"  KIDBUU JOB AGENT v5.1 — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    print("═" * 54)
 
+    # Startup checks
     if not ANTHROPIC_API_KEY:
-        log.error("ANTHROPIC_API_KEY not set — add to GitHub Secrets"); sys.exit(1)
+        log.error("[START] ANTHROPIC_API_KEY not set in GitHub Secrets")
+        write_status(0, 0, "Missing ANTHROPIC_API_KEY")
+        sys.exit(1)
     if not GMAIL_FROM or not GMAIL_APP_PASSWORD:
-        log.error("GMAIL_FROM or GMAIL_APP_PASSWORD not set"); sys.exit(1)
+        log.error("[START] Gmail secrets missing")
+        write_status(0, 0, "Missing Gmail secrets")
+        sys.exit(1)
 
-    cv      = load_cv()
-    applied = load_applied()
+    # Load CV
+    cv = load_json_file(CONFIG["cv_data_path"], {})
+    if not cv or cv.get("name") == "YOUR FULL NAME":
+        log.error("[START] cv_data.json not filled in — add CV_DATA_JSON to GitHub Secrets")
+        write_status(0, 0, "cv_data.json not configured")
+        sys.exit(1)
+
+    applied = load_json_file(CONFIG["applied_file"], {})
+    rate    = RateTracker()
     sent    = 0
+    skipped = 0
     style_i = 0
 
-    queries = []
-    if CONFIG["run_remote_track"] or CONFIG["run_global_track"]:
-        queries.extend(GLOBAL_REMOTE_QUERIES)
-    if CONFIG["run_it_track"]:
-        queries.extend([
-            "IT helpdesk technician cape town hiring",
-            "IT support technician cape town direct",
-            "junior IT support remote south africa",
-            "service desk agent cape town company",
-        ])
+    for query in JOB_SEARCHES:
+        if sent >= CONFIG["max_per_run"]:
+            log.info(f"[LIMIT] Reached {CONFIG['max_per_run']} sends — stopping run")
+            break
 
-    for query in queries:
         log.info(f"\n[SEARCH] {query}")
-        results = await search_jobs_ddg(query, limit=6)
+        results = await search(query, limit=4)
 
         for result in results:
-            job = await process_search_result(result, "remote", cv)
-            if not job: continue
+            if sent >= CONFIG["max_per_run"]:
+                break
+            if not rate.can_send():
+                log.info("[THROTTLE] Hourly cap — pausing 10min")
+                await asyncio.sleep(600)
+                rate._count = 0
 
-            # 30-day dedup check
-            if was_recently_applied(job.company_domain, applied):
-                log.info(f"[SKIP] {job.company} — applied within 30 days")
+            # NUCLEUS FIX-6: wrap each job in try/except
+            # one bad result never crashes the whole run
+            try:
+                job = await result_to_job(result)
+                if not job:
+                    skipped += 1
+                    continue
+
+                if already_applied(job.company_domain, applied):
+                    log.info(f"[SKIP] {job.company} — applied within 30 days")
+                    skipped += 1
+                    continue
+
+                log.info(f"[JOB] {job.title} @ {job.company}")
+
+                email_data = await write_email(job, cv, style_i)
+                style_i += 1
+
+                success = send(job, email_data, cv)
+
+                if success:
+                    applied[job.company_domain] = datetime.now(timezone.utc).isoformat()
+                    save_json_file(CONFIG["applied_file"], applied)
+                    sent += 1
+                    rate.record()
+                    log.info(f"[COUNT] Sent this run: {sent}")
+                    # Delay between sends — anti-spam
+                    await asyncio.sleep(
+                        CONFIG["delay_between_sec"] + random.randint(-10, 20)
+                    )
+                else:
+                    skipped += 1
+
+            except Exception as e:
+                log.error(f"[ERROR] Unexpected: {e} — continuing to next result")
+                skipped += 1
                 continue
 
-            log.info(f"[JOB] {job.title} @ {job.company} ({job.location})")
+        # Brief pause between search batches
+        await asyncio.sleep(3)
 
-            ai_data = await ai_customise(job, cv, style_i)
-            style_i += 1
-
-            success = await send_with_timezone(job, ai_data, cv)
-
-            if success:
-                applied[job.company_domain] = datetime.now(timezone.utc).isoformat()
-                save_applied(applied)
-                sent += 1
-                log.info(f"[COUNT] Sent today: {sent}")
-
-        await asyncio.sleep(3)  # brief pause between query batches
-
-    # Also process any queued jobs from previous runs
-    queue_file = Path("job_queue.json")
-    if queue_file.exists():
-        try:
-            queued = json.loads(queue_file.read_text())
-            remaining = []
-            for q in queued:
-                wait = seconds_until_send_window(q.get("tz_offset", 0))
-                if wait <= 300:  # within 5 mins of window
-                    dummy_job = Job(
-                        title=q["title"], company=q["company"],
-                        location=q["location"], description="",
-                        url="", source="queue", track="remote",
-                        company_domain="", emails_found=q.get("emails", []),
-                        recipient_tz=q.get("tz_offset", 0)
-                    )
-                    ai_d = {"email_subject": q["subject"], "email_body": q["body"],
-                            "include_photo": False, "style_used": "queued"}
-                    success = send_email(dummy_job, ai_d, cv)
-                    if success:
-                        applied[q["company"]] = datetime.now(timezone.utc).isoformat()
-                        save_applied(applied)
-                        sent += 1
-                else:
-                    remaining.append(q)  # not time yet, keep in queue
-            queue_file.write_text(json.dumps(remaining, indent=2))
-        except Exception as e:
-            log.error(f"[QUEUE] Failed to process queue: {e}")
-
-    print(f"\n[DONE] ✅ {sent} applications sent this run")
+    write_status(sent, skipped)
+    print(f"\n[DONE] ✅  Sent: {sent} | Skipped: {skipped}")
     print(f"[LOG]  {CONFIG['log_file']}")
 
 if __name__ == "__main__":

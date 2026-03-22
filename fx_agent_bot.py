@@ -1,17 +1,14 @@
 """
-FX Agent Bot v5.1 — Online
+FX Agent Bot v5.2 — Online
 Strategy: SMC Daily Sweep (2R) + ICT Silver Bullet (3R)
 Instruments: GOLD#, EURUSD, GBPUSD
 Runs on: GitHub Actions (cron) via MetaAPI cloud
 
-Fixes vs v5.0:
-- H4 timeframe "1h4" -> "4h" (was breaking all bias reads)
-- Connection sync timeout (prevents silent hang killing the job)
-- Daily level uses previous completed day, not partial current day
-- Indentation bug from heredoc approach eliminated (proper .py file)
-- Candle count logging added for verification
-- Loss counter only increments on failed order execution
-- Rebranded as FX Agent throughout
+v5.2 changes vs v5.1:
+- Heartbeat added: writes status.json after every run (proof-of-life for Nucleus)
+- Server time logged from MetaAPI (not local clock)
+- Friday guard now also writes heartbeat before exit
+- Sync timeout also writes heartbeat with error state
 """
 
 import os
@@ -35,6 +32,7 @@ except ImportError:
 META_API_TOKEN  = os.environ["META_API_TOKEN"]
 META_ACCOUNT_ID = os.environ["META_ACCOUNT_ID"]
 STATE_FILE      = "state.json"
+STATUS_FILE     = "status.json"
 
 RISK_PERCENT     = 5.0
 MAX_DAILY_LOSSES = 2
@@ -60,6 +58,31 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 log = logging.getLogger("FX-AGENT")
+
+# ── HEARTBEAT ─────────────────────────────────────────────────────
+def write_heartbeat(status: str, balance: float = 0, open_trades: int = 0,
+                    daily_losses: dict = None, server_time: str = None,
+                    last_prices: dict = None, error: str = None):
+    """
+    Writes status.json to repo root.
+    GitHub Actions workflow commits this file after every run.
+    Nucleus dashboard reads it from raw.githubusercontent.com.
+    """
+    data = {
+        "agent_version": "5.2",
+        "status": status,
+        "last_seen_utc": datetime.now(timezone.utc).isoformat(),
+        "server_time_utc": server_time or datetime.now(timezone.utc).isoformat(),
+        "balance": round(float(balance), 2) if balance else 0,
+        "open_trades": open_trades,
+        "daily_losses": daily_losses or {s: 0 for s in SYMBOLS},
+        "last_prices": last_prices or {},
+        "error": error or None,
+        "run_id": os.environ.get("GITHUB_RUN_ID", "local"),
+        "run_number": os.environ.get("GITHUB_RUN_NUMBER", "0"),
+    }
+    Path(STATUS_FILE).write_text(json.dumps(data, indent=2))
+    log.info(f"[HEARTBEAT] ✅ Written — status={status} balance={balance:.2f}")
 
 # ── STATE ─────────────────────────────────────────────────────────
 def load_state() -> dict:
@@ -211,12 +234,12 @@ def confirm_bos(candles: list, sweep_type: str) -> bool:
         return True
     return False
 
-# ── EXECUTE TRADE ─────────────────────────────────────────────────
+# ── TRADE EXECUTION ───────────────────────────────────────────────
 async def exec_trade(conn, sym: str, direction: str,
-                     price: float, sl: float, tp: float,
+                     entry: float, sl: float, tp: float,
                      lot: float, comment: str) -> bool:
+    opts = {"comment": comment, "clientId": f"fxa_{AGENT_ID}"}
     try:
-        opts = {"comment": f"{comment} {sym}", "clientId": f"FXA{AGENT_ID}"}
         if direction == "BUY":
             await conn.create_market_buy_order(sym, lot, sl, tp, opts)
         else:
@@ -233,14 +256,16 @@ async def exec_trade(conn, sym: str, direction: str,
 # ── MAIN ──────────────────────────────────────────────────────────
 async def run_bot():
     log.info("══════════════════════════════════════════")
-    log.info("FX Agent v5.1 — ONLINE — GitHub Actions")
+    log.info("FX Agent v5.2 — ONLINE — GitHub Actions")
     log.info("══════════════════════════════════════════")
 
     if is_friday():
         log.info("[FRIDAY] No trades per rules. Done.")
+        write_heartbeat("friday_skip")
         return
 
     state = load_state()
+    write_heartbeat("starting")
 
     api  = MetaApi(META_API_TOKEN)
     acct = await api.metatrader_account_api.get_account(META_ACCOUNT_ID)
@@ -252,39 +277,38 @@ async def run_bot():
     log.info("[META] Waiting for broker connection...")
     await acct.wait_connected()
 
-    conn = None
-    for attempt in range(1, 4):
-        try:
-            log.info(f"[META] Connection attempt {attempt}/3...")
-            conn = acct.get_rpc_connection()
-            await conn.connect()
-            await asyncio.wait_for(conn.wait_synchronized(), timeout=SYNC_TIMEOUT_SECONDS)
-            log.info("[META] Connected and synchronized ✅")
-            break
-        except asyncio.TimeoutError:
-            log.warning(f"[META] Attempt {attempt} timed out")
-            try: await conn.close()
-            except: pass
-            conn = None
-            if attempt == 3: log.error("[META] All attempts failed — aborting"); save_state(state); return
-            await asyncio.sleep(15)
-        except Exception as e:
-            log.warning(f"[META] Attempt {attempt} error: {e}")
-            try: await conn.close()
-            except: pass
-            conn = None
-            if attempt == 3: log.error("[META] All attempts failed — aborting"); save_state(state); return
-            await asyncio.sleep(15)
+    conn = acct.get_rpc_connection()
+    await conn.connect()
+
+    try:
+        await asyncio.wait_for(
+            conn.wait_synchronized(),
+            timeout=SYNC_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        log.error(f"[META] Sync timeout after {SYNC_TIMEOUT_SECONDS}s — aborting")
+        write_heartbeat("sync_timeout", error=f"MetaAPI sync timed out after {SYNC_TIMEOUT_SECONDS}s")
+        await conn.close()
+        save_state(state)
+        return
+
+    log.info("[META] Connected and synchronized ✅")
 
     acct_info  = await conn.get_account_information()
     balance    = acct_info["balance"]
-    log.info(f"[ACCOUNT] Balance: {balance:.2f}")
+    server_time = acct_info.get("time", datetime.now(timezone.utc).isoformat())
+    log.info(f"[ACCOUNT] Balance: {balance:.2f} | Server time: {server_time}")
+
+    # Write connected heartbeat — this is the first proof-of-life with real data
+    write_heartbeat("connected", balance=balance, server_time=str(server_time))
 
     positions  = await conn.get_positions()
     total_open = len([p for p in positions if p["symbol"] in SYMBOLS])
     ny_hour    = get_ny_hour()
     in_sweep   = is_sweep_session()
     log.info(f"[SESSION] NY Hour:{ny_hour} | Sweep:{in_sweep} | Open:{total_open}")
+
+    last_prices = {}
 
     for sym in SYMBOLS:
         log.info(f"\n{'─'*45}")
@@ -311,18 +335,18 @@ async def run_bot():
             vmax = spec["maxVolume"]
             vstp = spec["volumeStep"]
             log.info(f"[{sym}] BID:{bid} ASK:{ask} Spread:{spd}pts")
+            last_prices[sym] = {"bid": bid, "ask": ask, "spread": spd}
         except Exception as e:
             log.warning(f"[{sym}] Price/spec error: {e} — skip")
             continue
 
         try:
             now   = datetime.now(timezone.utc)
-            # get_historical_candles must be called on account object, not connection
-            c_h4  = await acct.get_historical_candles(symbol=sym, timeframe="4h",  start_time=now - timedelta(hours=60),  limit=15)
-            c_h1  = await acct.get_historical_candles(symbol=sym, timeframe="1h",  start_time=now - timedelta(hours=10),  limit=10)
-            c_m15 = await acct.get_historical_candles(symbol=sym, timeframe="15m", start_time=now - timedelta(hours=2),   limit=8)
-            c_m5  = await acct.get_historical_candles(symbol=sym, timeframe="5m",  start_time=now - timedelta(hours=2),   limit=30)
-            c_d1  = await acct.get_historical_candles(symbol=sym, timeframe="1d",  start_time=now - timedelta(days=3),    limit=3)
+            c_h4  = await conn.get_historical_candles(sym, "4h",  now - timedelta(hours=60),  15)
+            c_h1  = await conn.get_historical_candles(sym, "1h",  now - timedelta(hours=10),  10)
+            c_m15 = await conn.get_historical_candles(sym, "15m", now - timedelta(hours=2),    8)
+            c_m5  = await conn.get_historical_candles(sym, "5m",  now - timedelta(hours=2),   30)
+            c_d1  = await conn.get_historical_candles(sym, "1d",  now - timedelta(days=3),     3)
             log.info(f"[{sym}] Candles H4:{len(c_h4)} H1:{len(c_h1)} M15:{len(c_m15)} M5:{len(c_m5)} D1:{len(c_d1)}")
         except Exception as e:
             log.warning(f"[{sym}] Candle error: {e} — skip")
@@ -428,6 +452,17 @@ async def run_bot():
             log.info(f"[{sym}] Outside sweep session")
 
     save_state(state)
+
+    # Final heartbeat — full data snapshot
+    write_heartbeat(
+        status="completed",
+        balance=balance,
+        open_trades=total_open,
+        daily_losses=state["daily_losses"],
+        server_time=str(server_time),
+        last_prices=last_prices
+    )
+
     await conn.close()
     log.info("\n[DONE] ✅")
     log.info(f"[SUMMARY] Losses today: { {s: state['daily_losses'][s] for s in SYMBOLS} }")

@@ -1,16 +1,14 @@
 """
-FX Agent Bot v5.3 — Online
+FX Agent Bot v5.4 — Online
 Strategy: SMC Daily Sweep (2R) + ICT Silver Bullet (3R)
 Instruments: GOLD#, EURUSD, GBPUSD
 Runs on: GitHub Actions (cron) via MetaAPI cloud
 
-v5.3 fixes vs v5.2:
-- BUG 1 FIXED: spec["point"] → get_point() with fallback chain
-  MetaAPI returns "points" (plural) — was causing ALL symbols to skip every run
-- BUG 2 FIXED: spec["tickValue"] → get_tick_value() with capital T fallback
-  MetaAPI returns "TickValue" (capital T) — was 0 for all forex pairs
-- BUG 3 FIXED: TickValue=0 for forex — calculate from contractSize when 0
-- BUG 4 FIXED: OB_BUFFER now symbol-aware — GOLD=1.0, FX=0.0003
+v5.4 fixes vs v5.3:
+- BUG 5 FIXED: get_historical_candles not available on RPC connection
+  Use api.history_storage to fetch candles — works with RPC connection
+  RPC handles: prices, specs, positions, account info, trade execution
+  History API handles: OHLCV candle data
 """
 
 import os
@@ -56,7 +54,7 @@ log = logging.getLogger("FX-AGENT")
 def write_heartbeat(status, balance=0, open_trades=0, daily_losses=None,
                     server_time=None, last_prices=None, error=None):
     data = {
-        "agent_version": "5.3",
+        "agent_version": "5.4",
         "status": status,
         "last_seen_utc": datetime.now(timezone.utc).isoformat(),
         "server_time_utc": server_time or datetime.now(timezone.utc).isoformat(),
@@ -227,7 +225,7 @@ async def exec_trade(conn, sym, direction, entry, sl, tp, lot, comment):
 
 async def run_bot():
     log.info("══════════════════════════════════════════")
-    log.info("FX Agent v5.3 — ONLINE — GitHub Actions")
+    log.info("FX Agent v5.4 — ONLINE — GitHub Actions")
     log.info("══════════════════════════════════════════")
 
     if is_friday():
@@ -248,7 +246,7 @@ async def run_bot():
     log.info("[META] Waiting for broker connection...")
     await acct.wait_connected()
 
-    conn = acct.get_streaming_connection()
+    conn = acct.get_rpc_connection()
     await conn.connect()
 
     try:
@@ -304,11 +302,12 @@ async def run_bot():
 
         try:
             now   = datetime.now(timezone.utc)
-            c_h4  = await conn.get_historical_candles(sym, "4h",  now-timedelta(hours=60), 15)
-            c_h1  = await conn.get_historical_candles(sym, "1h",  now-timedelta(hours=10), 10)
-            c_m15 = await conn.get_historical_candles(sym, "15m", now-timedelta(hours=2),   8)
-            c_m5  = await conn.get_historical_candles(sym, "5m",  now-timedelta(hours=2),  30)
-            c_d1  = await conn.get_historical_candles(sym, "1d",  now-timedelta(days=3),    3)
+            # FIX BUG 5: get_historical_candles is on the account object (acct), not conn
+            c_h4  = await acct.get_historical_candles(symbol=sym, timeframe="4h",  start_time=now-timedelta(hours=60),  limit=15)
+            c_h1  = await acct.get_historical_candles(symbol=sym, timeframe="1h",  start_time=now-timedelta(hours=10),  limit=10)
+            c_m15 = await acct.get_historical_candles(symbol=sym, timeframe="15m", start_time=now-timedelta(hours=2),   limit=8)
+            c_m5  = await acct.get_historical_candles(symbol=sym, timeframe="5m",  start_time=now-timedelta(hours=2),   limit=30)
+            c_d1  = await acct.get_historical_candles(symbol=sym, timeframe="1d",  start_time=now-timedelta(days=3),    limit=3)
             log.info(f"[{sym}] Candles H4:{len(c_h4)} H1:{len(c_h1)} M15:{len(c_m15)} M5:{len(c_m5)} D1:{len(c_d1)}")
         except Exception as e:
             log.warning(f"[{sym}] Candle error: {e} — skip"); continue

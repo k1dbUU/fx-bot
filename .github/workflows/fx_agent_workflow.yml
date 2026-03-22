@@ -2,26 +2,71 @@ name: Nucleus — FX + Jobs + Supervisor (24/7)
 # Operator: K-I-D-B-U-U
 # Repo: PUBLIC — unlimited free GitHub Actions minutes
 # All secrets via GitHub Secrets — nothing hardcoded
+# Supervisor runs every 5min INDEPENDENTLY — always online
 
 on:
   schedule:
-    # FX session: every 5min Mon-Thu 13:00-19:55 UTC (15:00-21:55 SAST)
+    # ── Supervisor: every 5min always — reads commands, builds Shopify, monitors
+    - cron: "*/5 * * * *"
+    # ── FX Agent: every 5min Mon-Thu session 13:00-19:55 UTC (15:00 SAST)
     - cron: "*/5 13-19 * * 1-4"
-    # NY AM Silver Bullet window
+    # ── FX Agent: NY AM Silver Bullet window
     - cron: "0 10 * * 1-4"
-    # Job agent: every 4 hours around the clock
-    - cron: "0 */4 * * *"
-    # Overnight supervisor: every hour 00:00-12:00 UTC
-    - cron: "0 0-12 * * *"
+    # ── Job Agent: every 5min always — fastest command response
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
 
-  # ── FX AGENT + SUPERVISOR ──────────────────────────────────────
+  # ── NUCLEUS SUPERVISOR (every 5min, always on) ─────────────────
+  supervisor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    name: Nucleus Supervisor
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '*/5 * * * *'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install httpx
+
+      - name: Run Nucleus Supervisor
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
+          GMAIL_TO:           ${{ secrets.GMAIL_TO }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OPERATOR_ALIAS:     K-I-D-B-U-U
+        run: python nucleus_supervisor.py
+
+      - name: Commit supervisor outputs
+        if: always()
+        run: |
+          git config user.name  "nucleus-bot"
+          git config user.email "bot@nucleus.local"
+          git add cortex_log.json NUCLEUS_MEMORY.json shopify_build_log.json nucleus_command.json || true
+          git diff --staged --quiet || git commit -m "supe: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git pull --rebase origin main || true
+          git push || true
+
+  # ── FX AGENT + SUPERVISOR COMBO (session hours) ────────────────
   fx-agent:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     name: FX Agent
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '*/5 13-19 * * 1-4' ||
+      github.event.schedule == '0 10 * * 1-4'
 
     steps:
       - uses: actions/checkout@v4
@@ -50,30 +95,24 @@ jobs:
           META_ACCOUNT_ID: ${{ secrets.META_ACCOUNT_ID }}
         run: python fx_agent_bot.py
 
-      - name: Run Nucleus Supervisor
-        if: always()
-        env:
-          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
-          GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
-          GMAIL_TO:           ${{ secrets.GMAIL_TO }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          OPERATOR_ALIAS:     K-I-D-B-U-U
-        run: python nucleus_supervisor.py
-
-      - name: Commit outputs
+      - name: Commit FX outputs
         if: always()
         run: |
           git config user.name  "nucleus-bot"
           git config user.email "bot@nucleus.local"
-          git add state.json status.json cortex_log.json NUCLEUS_MEMORY.json || true
-          git diff --staged --quiet || git commit -m "nucleus: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git add state.json status.json || true
+          git diff --staged --quiet || git commit -m "fx: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git pull --rebase origin main || true
           git push || true
 
-  # ── JOB AGENT (every 4 hours) ─────────────────────────────────
+  # ── JOB AGENT (every 5min — reads commands immediately) ────────
   job-agent:
     runs-on: ubuntu-latest
     timeout-minutes: 55
     name: Job Agent
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '*/5 * * * *'
 
     steps:
       - uses: actions/checkout@v4
@@ -87,13 +126,25 @@ jobs:
       - name: Install dependencies
         run: pip install httpx
 
-      - name: Load CV data from secret
+      - name: Load CV and tracking files
         run: |
           echo '${{ secrets.CV_DATA_JSON }}' > cv_data.json
-          # Init tracking files if they don't exist yet
           [ -f applied_jobs.json ] || echo '{}' > applied_jobs.json
           [ -f bounced_emails.json ] || echo '[]' > bounced_emails.json
-          echo "CV and tracking files ready"
+          echo "Files ready"
+
+      - name: Check for pending command
+        run: |
+          if [ -f nucleus_command.json ]; then
+            STATUS=$(python3 -c "import json; d=json.load(open('nucleus_command.json')); print(d.get('status','pending'))" 2>/dev/null || echo "pending")
+            if [ "$STATUS" = "pending" ]; then
+              echo "NUCLEUS_COMMAND_PENDING=true" >> $GITHUB_ENV
+            else
+              echo "NUCLEUS_COMMAND_PENDING=false" >> $GITHUB_ENV
+            fi
+          else
+            echo "NUCLEUS_COMMAND_PENDING=false" >> $GITHUB_ENV
+          fi
 
       - name: Run Job Agent
         env:
@@ -101,9 +152,10 @@ jobs:
           GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           OPERATOR_ALIAS:     K-I-D-B-U-U
+          NUCLEUS_COMMAND_FILE: nucleus_command.json
         run: python kidbuu_job_agent.py
 
-      - name: Save tracking files to repo
+      - name: Save tracking files
         if: always()
         run: |
           git config user.name  "nucleus-bot"

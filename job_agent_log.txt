@@ -734,3 +734,108 @@
 2026-03-22 18:57:48,562 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
 2026-03-22 18:57:48,562 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
 2026-03-22 18:57:48,563 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:37,420 [INFO] 
+[SEARCH] remote data entry jobs south africa 2025 apply
+2026-03-22 19:16:38,340 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=remote+data+entry+jobs+south+africa+2025+apply&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:16:38,343 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:38,343 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:38,343 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:38,343 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:41,347 [INFO] 
+[SEARCH] CRM administrator remote job south africa hiring
+2026-03-22 19:16:42,073 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=CRM+administrator+remote+job+south+africa+hiring&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:16:42,074 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:42,074 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:42,075 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:42,075 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:45,077 [INFO] 
+[SEARCH] data capture clerk remote work south africa
+2026-03-22 19:16:45,901 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=data+capture+clerk+remote+work+south+africa&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:16:45,903 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:45,903 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:45,903 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:45,903 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:48,906 [INFO] 
+[SEARCH] virtual assistant remote job south africa entry level
+2026-03-22 19:16:49,644 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=virtual+assistant+remote+job+south+africa+entry+level&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:16:49,645 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:49,645 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:49,645 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:49,645 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:52,648 [INFO] 
+[SEARCH] back office administrator remote cape town hiring
+2026-03-22 19:16:53,336 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=back+office+administrator+remote+cape+town+hiring&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:16:53,338 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:53,338 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:53,338 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:53,338 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:56,342 [INFO] 
+[SEARCH] AI data annotator remote job south africa
+2026-03-22 19:16:57,079 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=AI+data+annotator+remote+job+south+africa&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:16:57,080 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:57,080 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:57,080 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:16:57,080 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:00,084 [INFO] 
+[SEARCH] remote bookkeeper entry level south africa
+2026-03-22 19:17:00,822 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=remote+bookkeeper+entry+level+south+africa&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:00,823 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:00,823 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:00,823 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:00,823 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:03,827 [INFO] 
+[SEARCH] helpdesk support remote south africa entry level
+2026-03-22 19:17:04,568 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=helpdesk+support+remote+south+africa+entry+level&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:04,570 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:04,570 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:04,570 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:04,570 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:07,573 [INFO] 
+[SEARCH] IT support technician remote south africa junior
+2026-03-22 19:17:08,354 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=IT+support+technician+remote+south+africa+junior&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:08,356 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:08,356 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:08,356 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:08,356 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:11,359 [INFO] 
+[SEARCH] data entry specialist remote no experience required
+2026-03-22 19:17:12,086 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=data+entry+specialist+remote+no+experience+required&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:12,087 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:12,087 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:12,087 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:12,087 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:15,091 [INFO] 
+[SEARCH] transcription remote job south africa 2025
+2026-03-22 19:17:15,915 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=transcription+remote+job+south+africa+2025&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:15,917 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:15,917 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:15,917 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:15,917 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:18,920 [INFO] 
+[SEARCH] remote admin assistant south africa hiring now
+2026-03-22 19:17:19,665 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=remote+admin+assistant+south+africa+hiring+now&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:19,666 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:19,667 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:19,667 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:19,667 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:22,670 [INFO] 
+[SEARCH] CRM data entry remote job UK hire south africa contractor
+2026-03-22 19:17:23,477 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=CRM+data+entry+remote+job+UK+hire+south+africa+contractor&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:23,478 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:23,479 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:23,479 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:23,479 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:26,482 [INFO] 
+[SEARCH] online data processor remote job south africa apply
+2026-03-22 19:17:27,234 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=online+data+processor+remote+job+south+africa+apply&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:27,235 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:27,235 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:27,235 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:27,235 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:30,239 [INFO] 
+[SEARCH] remote customer support data entry south africa 2025
+2026-03-22 19:17:30,926 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=remote+customer+support+data+entry+south+africa+2025&kl=za-en "HTTP/1.1 200 OK"
+2026-03-22 19:17:30,927 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:30,927 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:30,927 [INFO] [SKIP] No company name extractable — agency or undisclosed: 
+2026-03-22 19:17:30,927 [INFO] [SKIP] No company name extractable — agency or undisclosed: 

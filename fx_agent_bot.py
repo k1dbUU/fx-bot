@@ -18,11 +18,8 @@ import logging
 import math
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-
-try:
-    import requests
-except ImportError:
-    requests = None
+import urllib.request
+import urllib.parse
 
 from metaapi_cloud_sdk import MetaApi
 try:
@@ -173,164 +170,148 @@ def calc_lot(balance, sl_pts, spd, tv, ts, vmin, vmax, vstp):
     log.info(f"  [LOT] {lot} lots | risk={risk:.2f} actual={actual:.2f}")
     return lot
 
-def find_liq_sweep(candles, bias):
-    if len(candles) < 12:
-        return False, None
+def is_sweep_buy(sym, candles):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    nyh = get_ny_hour()
+    if nyh < 3 or nyh > 16: return False, 0, "⏰ Outside NY session"
+    if len(candles) < 10: return False, 0, "📊 Not enough data"
     
-    recent = candles[-12:]
-    current = candles[-1]
+    # Find today's high
+    today_candles = [c for c in candles if c["time"].startswith(today)]
+    if len(today_candles) < 3: return False, 0, "📊 Not enough today data"
     
-    if bias == "BULLISH":
-        prev_high = max(c["high"] for c in recent[:-1])
-        if current["high"] > prev_high:
-            return True, current["high"]
-    elif bias == "BEARISH":
-        prev_low = min(c["low"] for c in recent[:-1])
-        if current["low"] < prev_low:
-            return True, current["low"]
+    today_high = max(c["high"] for c in today_candles)
+    current_price = candles[-1]["close"]
     
-    return False, None
+    # Check if price swept above today's high
+    if current_price > today_high + get_ob_buffer(sym):
+        return True, today_high, "✅ Bullish sweep detected"
+    
+    return False, today_high, "⏳ No bullish sweep"
 
-async def fetch_candles(api, sym):
+def is_sweep_sell(sym, candles):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    nyh = get_ny_hour()
+    if nyh < 3 or nyh > 16: return False, 0, "⏰ Outside NY session"
+    if len(candles) < 10: return False, 0, "📊 Not enough data"
+    
+    # Find today's low
+    today_candles = [c for c in candles if c["time"].startswith(today)]
+    if len(today_candles) < 3: return False, 0, "📊 Not enough today data"
+    
+    today_low = min(c["low"] for c in today_candles)
+    current_price = candles[-1]["close"]
+    
+    # Check if price swept below today's low
+    if current_price < today_low - get_ob_buffer(sym):
+        return True, today_low, "✅ Bearish sweep detected"
+    
+    return False, today_low, "⏳ No bearish sweep"
+
+def is_silver_bullet_buy(sym, candles):
+    nyh = get_ny_hour()
+    
+    # London session (3-6 AM NY time)
+    if 3 <= nyh < 6:
+        session = "london"
+    # NY AM session (10-11 AM NY time)  
+    elif 10 <= nyh < 11:
+        session = "ny_am"
+    # NY PM session (2-3 PM NY time)
+    elif 14 <= nyh < 15:
+        session = "ny_pm"
+    else:
+        return False, 0, session, "⏰ Outside SB sessions"
+    
+    if len(candles) < 20: return False, 0, session, "📊 Not enough data"
+    
+    # Look for bullish momentum in last 10 candles
+    recent = candles[-10:]
+    bullish_candles = sum(1 for c in recent if c["close"] > c["open"])
+    
+    if bullish_candles >= 6:
+        entry = candles[-1]["close"]
+        return True, entry, session, f"✅ SB Buy signal ({bullish_candles}/10 bullish)"
+    
+    return False, 0, session, f"⏳ No SB signal ({bullish_candles}/10 bullish)"
+
+def is_silver_bullet_sell(sym, candles):
+    nyh = get_ny_hour()
+    
+    # London session (3-6 AM NY time)
+    if 3 <= nyh < 6:
+        session = "london"
+    # NY AM session (10-11 AM NY time)
+    elif 10 <= nyh < 11:
+        session = "ny_am" 
+    # NY PM session (2-3 PM NY time)
+    elif 14 <= nyh < 15:
+        session = "ny_pm"
+    else:
+        return False, 0, session, "⏰ Outside SB sessions"
+    
+    if len(candles) < 20: return False, 0, session, "📊 Not enough data"
+    
+    # Look for bearish momentum in last 10 candles
+    recent = candles[-10:]
+    bearish_candles = sum(1 for c in recent if c["close"] < c["open"])
+    
+    if bearish_candles >= 6:
+        entry = candles[-1]["close"]
+        return True, entry, session, f"✅ SB Sell signal ({bearish_candles}/10 bearish)"
+    
+    return False, 0, session, f"⏳ No SB signal ({bearish_candles}/10 bearish)"
+
+async def sync_wait(con):
+    log.info(f"[SYNC] Starting sync (timeout={SYNC_TIMEOUT_SECONDS}s)")
     try:
-        start_time = datetime.now(timezone.utc) - timedelta(days=2)
-        candles = await api.history_storage.get_candles(sym, "1h", start_time)
-        return candles[-24:] if len(candles) > 24 else candles
+        await asyncio.wait_for(con.wait_synchronized(), timeout=SYNC_TIMEOUT_SECONDS)
+        log.info("[SYNC] ✅ Complete")
+        return True
+    except asyncio.TimeoutError:
+        log.warning(f"[SYNC] ⚠️ Timeout after {SYNC_TIMEOUT_SECONDS}s")
+        return False
     except Exception as e:
-        log.error(f"  [CANDLES] {sym} error: {e}")
+        log.error(f"[SYNC] ❌ Error: {e}")
+        return False
+
+async def get_candles_safe(history_storage, sym, timeframe="M5", limit=100):
+    """Get candles using history storage API - works with RPC connection."""
+    try:
+        log.info(f"[CANDLES] Fetching {sym} {timeframe} x{limit}")
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=24)
+        
+        candles = await history_storage.get_historical_candles(
+            symbol=sym,
+            timeframe=timeframe,
+            start_time=start_time,
+            limit=limit
+        )
+        
+        if not candles:
+            log.warning(f"[CANDLES] {sym} — no data")
+            return []
+            
+        log.info(f"[CANDLES] {sym} — {len(candles)} candles fetched")
+        return candles
+        
+    except Exception as e:
+        log.error(f"[CANDLES] {sym} — error: {e}")
         return []
 
-async def process_symbol(api, conn, sym, state, specs, prices):
-    log.info(f"[PROCESS] {sym} —————————")
-    
+async def get_positions_safe(con):
     try:
-        spec = specs.get(sym, {})
-        price = prices.get(sym, {})
-        
-        if not price or not price.get("ask") or not price.get("bid"):
-            log.warning(f"  [SKIP] No price data")
-            return
-        
-        ask, bid = price["ask"], price["bid"]
-        spread_raw = ask - bid
-        point = get_point(spec, sym)
-        spread = spread_raw / point
-        
-        log.info(f"  [PRICE] ask={ask:.5f} bid={bid:.5f} spread={spread:.1f}pts")
-        
-        candles = await fetch_candles(api, sym)
-        if len(candles) < 13:
-            log.warning(f"  [SKIP] Need 13+ candles, got {len(candles)}")
-            return
-        
-        bias = get_bias(candles)
-        log.info(f"  [BIAS] {bias}")
-        
-        if bias == "NEUTRAL":
-            log.info("  [SKIP] Neutral bias")
-            return
-        
-        # Check for liquidity sweep
-        swept, sweep_price = find_liq_sweep(candles, bias)
-        
-        if not swept:
-            log.info("  [SKIP] No liquidity sweep")
-            return
-        
-        log.info(f"  [SWEEP] Detected at {sweep_price}")
-        
-        # Check spread for SMC strategy
-        if spread > MAX_SPREAD_SMC:
-            log.warning(f"  [SKIP] Spread too wide: {spread:.1f}pts")
-            return
-        
-        # Order block logic (simplified)
-        buffer = get_ob_buffer(sym)
-        
-        if bias == "BULLISH":
-            entry = sweep_price + buffer
-            sl_pts = GOLD_SL if sym == "GOLD#" else FX_SL
-            tp_pts = GOLD_TP if sym == "GOLD#" else FX_TP
-        else:
-            entry = sweep_price - buffer
-            sl_pts = GOLD_SL if sym == "GOLD#" else FX_SL
-            tp_pts = GOLD_TP if sym == "GOLD#" else FX_TP
-        
-        if not rr_passes(sl_pts, tp_pts, spread):
-            log.info("  [SKIP] R:R < 1.0")
-            return
-        
-        # Position sizing
-        balance = (await conn.get_account_information())["balance"]
-        tick_value = get_tick_value(spec, sym, ask)
-        tick_size = spec.get("tickSize", point)
-        vol_min = spec.get("minVolume", 0.01)
-        vol_max = spec.get("maxVolume", 100.0)
-        vol_step = spec.get("volumeStep", 0.01)
-        
-        lot = calc_lot(balance, sl_pts, spread, tick_value, tick_size,
-                      vol_min, vol_max, vol_step)
-        
-        # Execute trade
-        if bias == "BULLISH":
-            sl_price = entry - (sl_pts * point)
-            tp_price = entry + (tp_pts * point)
-            action = "ORDER_TYPE_BUY_LIMIT"
-        else:
-            sl_price = entry + (sl_pts * point)
-            tp_price = entry - (tp_pts * point)
-            action = "ORDER_TYPE_SELL_LIMIT"
-        
-        order = {
-            "actionType": action,
-            "symbol": sym,
-            "volume": lot,
-            "openPrice": entry,
-            "stopLoss": sl_price,
-            "takeProfit": tp_price,
-            "comment": f"SMC-Sweep-{AGENT_ID}"
-        }
-        
-        log.info(f"  [ORDER] {action} {lot} lots @ {entry:.5f}")
-        
-        result = await conn.create_limit_order(**order)
-        log.info(f"  [RESULT] orderId={result.get('orderId', 'N/A')}")
-        
+        positions = await con.get_positions()
+        return positions
     except Exception as e:
-        log.error(f"  [ERROR] {sym}: {e}")
+        log.error(f"[POSITIONS] Error: {e}")
+        return []
 
-async def main():
+async def get_account_info_safe(con):
     try:
-        log.info(f"[START] FX Agent Bot v5.4 — {AGENT_ID}")
-        write_heartbeat("starting")
-        
-        state = load_state()
-        
-        api = MetaApi(META_API_TOKEN)
-        account = await api.metatrader_account_api.get_account(META_ACCOUNT_ID)
-        
-        if account.state != "DEPLOYED":
-            log.warning(f"[ACCOUNT] State: {account.state} — deploying...")
-            await account.deploy()
-            await account.wait_deployed()
-        
-        log.info("[CONNECTION] Establishing...")
-        conn = account.get_rpc_connection()
-        await conn.connect()
-        await conn.wait_synchronized(timeout_in_seconds=SYNC_TIMEOUT_SECONDS)
-        
-        # Get account info
-        acc_info = await conn.get_account_information()
-        balance = acc_info["balance"]
-        server_time = acc_info.get("time", datetime.now(timezone.utc).isoformat())
-        
-        log.info(f"[ACCOUNT] Balance: ${balance:.2f}")
-        
-        # Get specifications for all symbols
-        log.info("[SPECS] Loading...")
-        specs = {}
-        for sym in SYMBOLS:
-            try:
-                spec = await conn.get_symbol_specification(sym)
-                specs[sym] = spec
-                log.info(f"  [SPEC] {sym
+        info = await con.get_account_information()
+        return info
+    except Exception as e:
+        log.error(f"[ACCOUNT] Error: {e}")
+        return

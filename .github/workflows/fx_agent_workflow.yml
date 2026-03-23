@@ -1,10 +1,10 @@
-name: Nucleus — FX + Jobs + Supervisor + Email Sanitizer (24/7)
-# Operator: K-I-D-B-U-U
-# v2 FIX — two changes:
-#   1. Job Agent gets its own unique cron string so GitHub doesn't
-#      deduplicate it against the Supervisor trigger
-#   2. Job Agent timeout dropped 55 → 12min so it finishes before
-#      the next cycle fires, preventing queue stacking
+name: Nucleus — Agent Workflow (24/7)
+# Operator: Nucleus Operator
+# v3 CHANGES:
+#   1. Workflow renamed from FX-centric name to Nucleus Agent Workflow
+#   2. OPERATOR_ALIAS updated to Nucleus Operator (alias migration Step 1)
+#   3. LENS Agent added — video intelligence, every 15min (offset 7-57/15)
+#      capped at 2 links/run, 20min timeout for Whisper
 # All secrets via GitHub Secrets — nothing hardcoded
 
 on:
@@ -24,6 +24,9 @@ on:
 
     # ── Email Sanitizer: every 30min always
     - cron: "*/30 * * * *"
+
+    # ── LENS Agent: every 15min always (offset 7min to avoid Supervisor collision)
+    - cron: "7-57/15 * * * *"
 
   workflow_dispatch:
 
@@ -57,7 +60,7 @@ jobs:
           GMAIL_TO:           ${{ secrets.GMAIL_TO }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GH_PAT:             ${{ secrets.GH_PAT }}
-          OPERATOR_ALIAS:     K-I-D-B-U-U
+          OPERATOR_ALIAS:     "Nucleus Operator"
         run: python nucleus_supervisor.py
 
       - name: Commit supervisor outputs
@@ -120,8 +123,6 @@ jobs:
           git push || true
 
   # ── JOB AGENT (every 5min offset — 12min hard cap) ─────────────
-  # FIX: timeout 55 → 12min. Agent sends max ~3 emails per run.
-  # This ensures it ALWAYS finishes before the next cycle.
   job-agent:
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -167,9 +168,9 @@ jobs:
           ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
           GMAIL_FROM:           ${{ secrets.GMAIL_FROM }}
           GMAIL_APP_PASSWORD:   ${{ secrets.GMAIL_APP_PASSWORD }}
-          OPERATOR_ALIAS:       K-I-D-B-U-U
+          OPERATOR_ALIAS:       "Nucleus Operator"
           NUCLEUS_COMMAND_FILE: nucleus_command.json
-        run: python kidbuu_job_agent.py
+        run: python nucleus_job_agent.py
 
       - name: Save tracking files
         if: always()
@@ -208,7 +209,7 @@ jobs:
           GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
           GMAIL_TO:           ${{ secrets.GMAIL_TO }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          OPERATOR_ALIAS:     K-I-D-B-U-U
+          OPERATOR_ALIAS:     "Nucleus Operator"
         run: python nucleus_email_sanitizer.py
 
       - name: Commit sanitizer outputs
@@ -221,14 +222,14 @@ jobs:
           git pull --rebase origin main || true
           git push || true
 
-  # ── SHOPIFY STORE MANAGER ─────────────────────────────────────────
-  shopify:
+  # ── LENS AGENT (every 15min — video intelligence) ───────────────
+  lens-agent:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    name: Shopify Store Manager
+    timeout-minutes: 20
+    name: LENS Agent
     if: |
       github.event_name == 'workflow_dispatch' ||
-      github.event.schedule == '*/30 * * * *'
+      github.event.schedule == '7-57/15 * * * *'
 
     steps:
       - uses: actions/checkout@v4
@@ -239,25 +240,29 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install httpx
+      - name: Install system dependencies (ffmpeg for Whisper)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
 
-      - name: Run Shopify Store Manager
+      - name: Install Python dependencies
+        run: |
+          pip install yt-dlp httpx
+          pip install openai-whisper
+
+      - name: Run LENS Agent
         env:
           ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
           GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
-          GMAIL_TO:           ${{ secrets.GMAIL_TO }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          GH_PAT:             ${{ secrets.GH_PAT }}
-          OPERATOR_ALIAS:     Nucleus Operator
-        run: python shopify_agent.py
+        run: python nucleus_lens_agent.py
 
-      - name: Commit outputs
+      - name: Commit LENS outputs
         if: always()
         run: |
           git config user.name  "nucleus-bot"
           git config user.email "bot@nucleus.local"
-          git add shopify_agent_status.json || true
-          git diff --staged --quiet || git commit -m "shopify: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git add lens_queue.json lens_log.json lens_agent_status.json nucleus_command.json || true
+          git diff --staged --quiet || git commit -m "lens: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git pull --rebase origin main || true
           git push || true

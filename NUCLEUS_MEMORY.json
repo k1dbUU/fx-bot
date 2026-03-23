@@ -192,6 +192,30 @@
   },
   "lessons": [
     {
+      "timestamp": "2026-03-23T22:54:34.706261+00:00",
+      "lesson": "LESSON: ICT's 2026 updates emphasize live trade execution with CISD (Current Internal Structure Displacement) for precise entry timing. | UPGRADE: YES | Live execution focus improves real-time decision making skills.",
+      "source": "learning",
+      "topic": "ICT smart money concepts forex 2026 updates"
+    },
+    {
+      "timestamp": "2026-03-23T22:54:30.544941+00:00",
+      "lesson": "LESSON: The AI agent framework landscape in 2026 has standardized around the model-runtime-harness-agent stack with LangGraph, CrewAI, and AutoGen leading as top free Python options. | UPGRADE: YES | Framework standardization enables better interoperability and development efficiency.",
+      "source": "learning",
+      "topic": "best free Python AI agent frameworks 2026"
+    },
+    {
+      "timestamp": "2026-03-23T22:54:26.148166+00:00",
+      "lesson": "LESSON: Remote work opportunities in South Africa will offer R55k+ salaries by accessing global markets while maintaining local cost of living advantages. | UPGRADE: YES | Global salary arbitrage creates significant earning potential increase.",
+      "source": "learning",
+      "topic": "remote work south africa opportunities 2026"
+    },
+    {
+      "timestamp": "2026-03-23T22:54:22.393959+00:00",
+      "lesson": "LESSON: Test inbox placement across providers regularly to catch deliverability issues before they impact campaign performance. | UPGRADE: YES | Testing prevents revenue loss from emails landing in spam folders.",
+      "source": "learning",
+      "topic": "email deliverability best practices 2026"
+    },
+    {
       "timestamp": "2026-03-23T22:16:48.739583+00:00",
       "lesson": "The agent should investigate why job processing completely stops when FX markets go OFFLINE, as this suggests critical system dependency that could be causing unnecessary operational downtime."
     },
@@ -222,6 +246,10 @@
   ],
   "last_lesson_utc": "2026-03-23T22:16:48.739595+00:00",
   "evolution_log": [
+    {
+      "timestamp": "2026-03-23T22:54:34.706446+00:00",
+      "event": "Learning: 4 lessons, 4 upgrades"
+    },
     {
       "timestamp": "2026-03-23T22:16:48.739599+00:00",
       "event": "Lesson by Supervisor v5.4"

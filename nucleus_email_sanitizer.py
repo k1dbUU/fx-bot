@@ -440,7 +440,7 @@ async def run_clean_cycle():
 
     # Reset daily counters if new day
     today = datetime.now(timezone(timedelta(hours=2))).strftime("%Y-%m-%d")
-    if status.get("last_run", "")[:10] != today:
+    if (status.get("last_run") or "")[:10] != today:
         status["deleted_today"]   = 0
         status["reviewed_today"]  = 0
         status["protected_today"] = 0

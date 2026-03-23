@@ -190,9 +190,46 @@
     "lens_note": "LENS uses Whisper (free, local on GitHub runner) + yt-dlp (free). No added cost.",
     "oracle_note": "Oracle Always Free \u2014 $0/month permanently. Migration target to eliminate GitHub Actions limits entirely."
   },
-  "lessons": [],
-  "last_lesson_utc": null,
+  "lessons": [
+    {
+      "timestamp": "2026-03-23T22:16:48.739583+00:00",
+      "lesson": "The agent should investigate why job processing completely stops when FX markets go OFFLINE, as this suggests critical system dependency that could be causing unnecessary operational downtime."
+    },
+    {
+      "timestamp": "2026-03-23T22:16:45.156198+00:00",
+      "lesson": "LESSON: The ReAct pattern (Reason-Act-Observe) delivers transparency and reduces hallucinations by grounding agent decisions in real-world feedback loops. | UPGRADE: YES | Makes agents auditable and reduces costly AI errors significantly.",
+      "source": "learning",
+      "topic": "autonomous agent design patterns 2026"
+    },
+    {
+      "timestamp": "2026-03-23T22:16:40.973714+00:00",
+      "lesson": "LESSON: South Africa's R7.1 billion pet market with 1% growth suggests luxury furniture represents untapped premium opportunity. | UPGRADE: YES | Global 9.2% CAGR versus SA's 1% indicates massive growth potential.",
+      "source": "learning",
+      "topic": "luxury pet furniture market south africa 2026"
+    },
+    {
+      "timestamp": "2026-03-23T22:16:36.836447+00:00",
+      "lesson": "LESSON: Use Shopify's official Python API library with pyactiveresource for programmatic admin access to store data. | UPGRADE: YES | Official library provides ActiveResource interface for reliable operations.",
+      "source": "learning",
+      "topic": "Shopify API automation Python 2026"
+    },
+    {
+      "timestamp": "2026-03-23T22:16:32.792041+00:00",
+      "lesson": "LESSON: Use setup-python action in GitHub Actions for consistent Python async performance testing across different runners. | UPGRADE: YES | Ensures reproducible async benchmarks across CI/CD environments consistently.",
+      "source": "learning",
+      "topic": "async Python performance GitHub Actions"
+    }
+  ],
+  "last_lesson_utc": "2026-03-23T22:16:48.739595+00:00",
   "evolution_log": [
+    {
+      "timestamp": "2026-03-23T22:16:48.739599+00:00",
+      "event": "Lesson by Supervisor v5.4"
+    },
+    {
+      "timestamp": "2026-03-23T22:16:45.156435+00:00",
+      "event": "Learning: 4 lessons, 4 upgrades"
+    },
     {
       "timestamp": "2026-03-23T19:00:00+00:00",
       "event": "Nucleus v5.5 \u2014 Oracle migration mandate added. Preparation begins immediately. Email reply urgency flagged CRITICAL \u2014 operator awaiting job responses. Operator commendation recorded \u2014 workflows clean and stable."

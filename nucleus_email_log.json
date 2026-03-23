@@ -231,7 +231,23 @@
       "trusted": true,
       "responded": "2026-03-23T13:43:10.994317+00:00",
       "preview": "**Current Agent Status Report:**\n\n**FX Agent:** Currently OFFLINE with ZAR 1,623.25 balance. Monitor"
+    },
+    {
+      "id": "3829",
+      "from": "notifications@github.com",
+      "subject": "[k1dbUU/fx-bot] Run failed: Nucleus \u2014 FX + Jobs + Supervisor + Email Sanitizer (24/7) - main (c2e6588)",
+      "trusted": false,
+      "responded": "2026-03-23T14:42:50.158202+00:00",
+      "preview": "GitHub workflow failure detected. The Shopify Store Manager job failed with 2 annotations while othe"
+    },
+    {
+      "id": "3830",
+      "from": "panashegunsalu@gmail.com",
+      "subject": "Nucleus",
+      "trusted": true,
+      "responded": "2026-03-23T14:43:03.310390+00:00",
+      "preview": "**System Response:**\n\n**Multi-tasking capability:** Currently sequential processing only. To enable "
     }
   ],
-  "last_scan": "2026-03-23T13:43:10.994337+00:00"
+  "last_scan": "2026-03-23T14:43:03.310407+00:00"
 }

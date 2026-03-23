@@ -167,7 +167,15 @@
       "trusted": false,
       "responded": "2026-03-23T10:36:43.477904+00:00",
       "preview": "GitHub Actions run failed on the Email Sanitizer component. The failure occurred at 10:34 UTC, but a"
+    },
+    {
+      "id": "3813",
+      "from": "notifications@github.com",
+      "subject": "[k1dbUU/fx-bot] Run failed: Nucleus \u2014 FX + Jobs + Supervisor + Email Sanitizer (24/7) - main (be3beaa)",
+      "trusted": false,
+      "responded": "2026-03-23T12:03:17.024820+00:00",
+      "preview": "GitHub workflow run failed at 11:39 UTC. FX Agent component failed with 2 annotations while other co"
     }
   ],
-  "last_scan": "2026-03-23T10:36:43.477917+00:00"
+  "last_scan": "2026-03-23T12:03:17.024838+00:00"
 }

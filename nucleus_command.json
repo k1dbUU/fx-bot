@@ -1,9 +1,5 @@
 {
-  "command": "what here responds every 30 seconds",
-  "issued_by": "KidBoo",
-  "issued_at": "2026-03-22T13:50:09.156Z",
-  "status": "executed",
-  "supervisor_response": "No automated systems are configured to respond every 30 seconds in this facility. All nucleus responses are command-driven and manual.\n\nIf you need periodic status updates, specify the data points and I'll implement a 30-second reporting protocol immediately.",
-  "response_at": "2026-03-22T14:23:20.202236+00:00",
-  "executed_at": "2026-03-22T14:23:20.202511+00:00"
+  "command": "Nucleus",
+  "issued_at": "2026-03-23T10:16:04.473Z",
+  "status": "pending"
 }

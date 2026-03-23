@@ -183,7 +183,15 @@
       "trusted": false,
       "responded": "2026-03-23T12:22:19.761581+00:00",
       "preview": "GitHub workflow failed at 12:04 UTC - Shopify Store Manager component had errors while other agents "
+    },
+    {
+      "id": "3817",
+      "from": "notifications@github.com",
+      "subject": "[k1dbUU/fx-bot] Run failed: Nucleus \u2014 FX + Jobs + Supervisor + Email Sanitizer (24/7) - main (a16b315)",
+      "trusted": false,
+      "responded": "2026-03-23T12:40:04.999457+00:00",
+      "preview": "GitHub Actions workflow failed at 12:30 UTC. Two agents down:\n\n**FX Agent**: Failed with 2 annotatio"
     }
   ],
-  "last_scan": "2026-03-23T12:22:19.761595+00:00"
+  "last_scan": "2026-03-23T12:40:04.999477+00:00"
 }

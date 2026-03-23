@@ -29,9 +29,17 @@ except ImportError:
     ENGINE_AVAILABLE = False
     print("[ENGINE] nucleus_autonomous_engine.py not found — upload it to activate")
 
+# ── TESTING ROOM ──────────────────────────────────────────────────
+try:
+    from nucleus_testing_room import run_testing_room, sunday_self_audit
+    TESTING_ROOM_AVAILABLE = True
+except ImportError:
+    TESTING_ROOM_AVAILABLE = False
+    print("[TESTING ROOM] nucleus_testing_room.py not found")
+
 # ── IDENTITY ──────────────────────────────────────────────────────
 OPERATOR  = os.getenv("OPERATOR_ALIAS", "Nucleus Operator")
-VERSION   = "5.3"
+VERSION   = "5.4"
 
 # ── SECRETS ───────────────────────────────────────────────────────
 ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
@@ -1319,6 +1327,67 @@ async def create_private_repo():
         print(f"[REPO] Error: {e}")
 
 
+
+# ═══════════════════════════════════════════════════════════════════
+# ── EOD SUMMARY ────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+async def send_eod_summary():
+    """Sends end-of-day summary at 22:00 SAST. Every agent, every email trashed."""
+    sast = datetime.now(timezone(timedelta(hours=2)))
+    if sast.hour != 22:
+        return
+    eod_key = f"eod_sent_{sast.strftime('%Y-%m-%d')}"
+    memory = load_json(MEMORY_FILE, {})
+    if memory.get(eod_key):
+        return
+
+    print("[EOD] Building end-of-day summary...")
+    lines = [
+        f"NUCLEUS END OF DAY REPORT — {sast.strftime('%A %d %B %Y')}",
+        "=" * 54, "",
+        "AGENT DAILY REPORT", "-" * 30,
+    ]
+
+    fx   = load_json("status.json", {})
+    job  = load_json("job_agent_status.json", {})
+    shop = load_json("shopify_agent_status.json", {})
+    purge = load_json("email_purge_log.json", {"trashed_today": []})
+    cortex = load_json(CORTEX_FILE, [])
+    room_log = load_json("nucleus_testing_room_log.json", {"sessions": []})
+
+    run_count = len([e for e in cortex if (e.get("sast") or "").startswith(sast.strftime("%Y-%m-%d"))])
+    trashed_today = purge.get("trashed_today", [])
+    today_upgrades = [s for s in room_log.get("sessions", []) if (s.get("timestamp") or "").startswith(sast.strftime("%Y-%m-%d"))]
+
+    lines.append(f"FX AGENT:       ZAR {fx.get('balance_zar','—')} | {fx.get('trades_today',0)} trades | {'Active' if fx.get('in_session') else 'Market closed'}")
+    lines.append(f"JOB AGENT:      {job.get('emails_sent_today', job.get('total_sent',0))} sent | {job.get('skipped_today',0)} skipped")
+    lines.append(f"SHOPIFY AGENT:  {'Connected' if shop.get('store_connected') else 'Awaiting credentials'} | {shop.get('last_action','Monitoring')}")
+    lines.append(f"EMAIL CLEANER:  {len(trashed_today)} emails trashed | Inbox maintained")
+    lines.append(f"SUPERVISOR:     {run_count} runs today | Self-healing active")
+    if today_upgrades:
+        lines.append(f"TESTING ROOM:   {len(today_upgrades)} agent(s) upgraded tonight")
+
+    lines += ["", "EMAILS TRASHED TODAY", "-" * 30]
+    if trashed_today:
+        for addr in trashed_today[:50]:
+            lines.append(f"  trash  {addr}")
+        if len(trashed_today) > 50:
+            lines.append(f"  ... and {len(trashed_today)-50} more")
+        lines.append("\n  All in Gmail Trash — auto-purges in 30 days. Recoverable until then.")
+    else:
+        lines.append("  None trashed today.")
+
+    lines += ["", f"MARCH DEADLINE: {days_until_end_of_march()} days remaining",
+              f"COST ~$4.14/mo | R76.59/mo", f"\n— Nucleus v{VERSION} · {sast_now()}"]
+
+    body = "\n".join(lines)
+    if is_clean(body):
+        send_alert("📊 End of Day Report", body)
+        memory[eod_key] = True
+        save_json(MEMORY_FILE, memory)
+        print("[EOD] ✅ Summary sent")
+
+
 # ═══════════════════════════════════════════════════════════════════
 # ── MAIN ──────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════
@@ -1396,6 +1465,14 @@ async def run():
         await create_private_repo()
         memory["private_repo_created"] = True
         save_json(MEMORY_FILE, memory)
+
+    # ── STEP 10: TESTING ROOM (idle agents get upgraded 01:00-05:00) ─
+    if TESTING_ROOM_AVAILABLE:
+        await run_testing_room()
+        await sunday_self_audit()
+
+    # ── STEP 11: EOD SUMMARY (22:00 SAST) ────────────────────────
+    await send_eod_summary()
 
     status_summary = "clean" if not issues else f"{len(issues)} issue(s)"
     print(f"\n[SUPERVISOR] Done ✅ — {status_summary} — {sast_now()}")

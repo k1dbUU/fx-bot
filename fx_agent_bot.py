@@ -170,227 +170,142 @@ def calc_lot(balance, sl_pts, spd, tv, ts, vmin, vmax, vstp):
 
 def find_liq_sweep(candles, bias):
     if len(candles) < 12: return False
-    pool = candles[-10:-1]; trigger = candles[-1]
-    if bias == "BULLISH":
-        sw = min(c["low"] for c in pool)
-        if trigger["low"] < sw and trigger["close"] > sw:
-            log.info("  [SB-LIQ] Bullish ✅"); return True
-    else:
-        sw = max(c["high"] for c in pool)
-        if trigger["high"] > sw and trigger["close"] < sw:
-            log.info("  [SB-LIQ] Bearish ✅"); return True
+    recent = candles[-12:]
+    high_levels = [c["high"] for c in recent[:-1]]
+    low_levels  = [c["low"]  for c in recent[:-1]]
+    curr = recent[-1]
+    if bias == "BULLISH" and low_levels:
+        min_low = min(low_levels)
+        if curr["low"] < min_low:
+            log.info(f"  [SWEEP] Low swept: {curr['low']:.5f} < {min_low:.5f}")
+            return True
+    elif bias == "BEARISH" and high_levels:
+        max_high = max(high_levels)
+        if curr["high"] > max_high:
+            log.info(f"  [SWEEP] High swept: {curr['high']:.5f} > {max_high:.5f}")
+            return True
     return False
 
-def find_fvg(candles, bias):
+def find_order_block(candles, bias):
     if len(candles) < 4: return None
-    for i in range(1, min(len(candles)-1, 29)):
-        c1, c2, c3 = candles[i-1], candles[i], candles[i+1]
-        c2t = max(c2["open"], c2["close"]); c2b = min(c2["open"], c2["close"])
-        if bias == "BULLISH" and c1["low"] > c3["high"] and c2t > c2b * 1.001:
-            log.info("  [FVG] Bullish ✅"); return (c1["low"], c3["high"])
-        if bias == "BEARISH" and c1["high"] < c3["low"] and c2b < c2t * 0.999:
-            log.info("  [FVG] Bearish ✅"); return (c3["low"], c1["high"])
+    recent = candles[-4:]
+    if bias == "BULLISH":
+        for i, c in enumerate(recent):
+            if c["close"] < c["open"]:
+                return {"high": c["high"], "low": c["low"]}
+    elif bias == "BEARISH":
+        for i, c in enumerate(recent):
+            if c["close"] > c["open"]:
+                return {"high": c["high"], "low": c["low"]}
     return None
 
-def check_close_back(candles, sweep_type, dh, dl):
-    for c in reversed(candles[-5:]):
-        if sweep_type == "HIGH" and c["close"] < dh: log.info("  [CB] ✅"); return True
-        if sweep_type == "LOW"  and c["close"] > dl: log.info("  [CB] ✅"); return True
-    return False
+def price_in_ob(price, ob, bias, buffer):
+    if not ob: return False
+    if bias == "BULLISH":
+        return ob["low"] - buffer <= price <= ob["high"] + buffer
+    else:
+        return ob["low"] - buffer <= price <= ob["high"] + buffer
 
-def confirm_bos(candles, sweep_type):
-    if len(candles) < 8: return False
-    pool = candles[-8:]
-    hi = max(c["high"] for c in pool); lo = min(c["low"] for c in pool)
-    mid = (hi + lo) / 2.0; rc = pool[-2]["close"]
-    if sweep_type == "HIGH" and rc < mid: log.info("  [BOS] ✅ Bearish"); return True
-    if sweep_type == "LOW"  and rc > mid: log.info("  [BOS] ✅ Bullish"); return True
-    return False
+def find_silver_bullet(candles, hour):
+    if len(candles) < 3: return None
+    session_candles = []
+    for c in candles[-10:]:
+        ch = datetime.fromisoformat(c["time"].replace("Z", "+00:00")).hour
+        if hour == 2 and ch in [2, 3]:
+            session_candles.append(c)
+        elif hour == 8 and ch in [8, 9]:
+            session_candles.append(c)
+        elif hour == 13 and ch in [13, 14]:
+            session_candles.append(c)
+    if len(session_candles) < 2: return None
+    hi = max(c["high"] for c in session_candles)
+    lo = min(c["low"] for c in session_candles)
+    return {"high": hi, "low": lo}
 
-async def exec_trade(conn, sym, direction, entry, sl, tp, lot, comment):
-    opts = {"comment": comment, "clientId": f"fxa_{AGENT_ID}"}
+def check_ict_confluences(candles, bias):
+    confluences = []
+    if len(candles) < 5: return confluences
+    recent = candles[-5:]
+    smas = [sum(c["close"] for c in recent[i:i+3])/3 for i in range(len(recent)-2)]
+    if len(smas) >= 2:
+        if bias == "BULLISH" and smas[-1] > smas[-2]:
+            confluences.append("SMA_ALIGNED")
+        elif bias == "BEARISH" and smas[-1] < smas[-2]:
+            confluences.append("SMA_ALIGNED")
+    curr = recent[-1]
+    if len(recent) >= 3:
+        if bias == "BULLISH" and curr["close"] > recent[-2]["high"]:
+            confluences.append("BREAK_OF_STRUCTURE")
+        elif bias == "BEARISH" and curr["close"] < recent[-2]["low"]:
+            confluences.append("BREAK_OF_STRUCTURE")
+    return confluences
+
+async def execute_trade(connection, sym, side, lot, sl, tp, comment):
     try:
-        if direction == "BUY":
-            await conn.create_market_buy_order(sym, lot, sl, tp, opts)
-        else:
-            await conn.create_market_sell_order(sym, lot, sl, tp, opts)
-        log.info(f"  [TRADE] ✅ {sym} {direction} lot={lot}")
+        result = await connection.create_market_buy_order(sym, lot, sl, tp, {"comment": comment}) if side == "BUY" else await connection.create_market_sell_order(sym, lot, sl, tp, {"comment": comment})
+        log.info(f"  [TRADE] {side} {lot} {sym} — orderId={result.get('orderId', 'N/A')}")
         return True
     except TradeException as e:
-        log.error(f"  [TRADE] ❌ {sym} TradeException: {e.message}")
+        log.error(f"  [TRADE] Failed — {e}")
         return False
     except Exception as e:
-        log.error(f"  [TRADE] ❌ {sym} Error: {e}")
+        log.error(f"  [TRADE] Error — {e}")
         return False
 
-async def run_bot():
-    log.info("══════════════════════════════════════════")
-    log.info("FX Agent v5.4 — ONLINE — GitHub Actions")
-    log.info("══════════════════════════════════════════")
-
-    if is_friday():
-        log.info("[FRIDAY] No trades. Done.")
-        write_heartbeat("friday_skip")
-        return
-
-    state = load_state()
-    write_heartbeat("starting")
-
-    api  = MetaApi(META_API_TOKEN)
-    acct = await api.metatrader_account_api.get_account(META_ACCOUNT_ID)
-
-    if acct.state not in ("DEPLOYING", "DEPLOYED"):
-        log.info("[META] Deploying...")
-        await acct.deploy()
-
-    log.info("[META] Waiting for broker connection...")
-    await acct.wait_connected()
-
-    conn = acct.get_rpc_connection()
-    await conn.connect()
-
+async def main():
+    api = MetaApi(META_API_TOKEN)
+    account = None
+    connection = None
+    history_storage = None
+    
     try:
-        await asyncio.wait_for(conn.wait_synchronized(), timeout=SYNC_TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
-        log.error(f"[META] Sync timeout after {SYNC_TIMEOUT_SECONDS}s")
-        write_heartbeat("sync_timeout", error=f"Sync timeout after {SYNC_TIMEOUT_SECONDS}s")
-        await conn.close(); save_state(state); return
-
-    log.info("[META] Connected and synchronized ✅")
-
-    acct_info   = await conn.get_account_information()
-    balance     = acct_info["balance"]
-    server_time = acct_info.get("time", datetime.now(timezone.utc).isoformat())
-    log.info(f"[ACCOUNT] Balance: {balance:.2f}")
-
-    write_heartbeat("connected", balance=balance, server_time=str(server_time))
-
-    positions  = await conn.get_positions()
-    total_open = len([p for p in positions if p["symbol"] in SYMBOLS])
-    ny_hour    = get_ny_hour()
-    in_sweep   = is_sweep_session()
-    log.info(f"[SESSION] NY Hour:{ny_hour} | Sweep:{in_sweep} | Open:{total_open}")
-
-    last_prices = {}
-
-    for sym in SYMBOLS:
-        log.info(f"\n{'─'*45}\n[{sym}]")
-
-        if state["daily_losses"][sym] >= MAX_DAILY_LOSSES:
-            log.info(f"[{sym}] Daily loss limit — skip"); continue
-        if total_open >= MAX_OPEN_TRADES:
-            log.info("[GLOBAL] Max open trades"); break
-
-        try:
-            tick = await conn.get_symbol_price(sym)
-            bid  = tick["bid"]; ask = tick["ask"]
-            spec = await conn.get_symbol_specification(sym)
-
-            pt   = get_point(spec, sym)
-            tv   = get_tick_value(spec, sym, ask)
-            ts   = spec.get("tickSize", 0.00001)
-            vmin = spec.get("minVolume", 0.01)
-            vmax = spec.get("maxVolume", 50.0)
-            vstp = spec.get("volumeStep", 0.01)
-            spd  = round((ask - bid) / pt)
-            ob_buf = get_ob_buffer(sym)
-
-            log.info(f"[{sym}] BID:{bid} ASK:{ask} SPD:{spd}pts pt:{pt} tv:{tv:.5f}")
-            last_prices[sym] = {"bid": bid, "ask": ask, "spread": spd}
-        except Exception as e:
-            log.warning(f"[{sym}] Price/spec error: {e} — skip"); continue
-
-        try:
-            now   = datetime.now(timezone.utc)
-            # FIX BUG 5: get_historical_candles is on the account object (acct), not conn
-            c_h4  = await acct.get_historical_candles(symbol=sym, timeframe="4h",  start_time=now-timedelta(hours=60),  limit=15)
-            c_h1  = await acct.get_historical_candles(symbol=sym, timeframe="1h",  start_time=now-timedelta(hours=10),  limit=10)
-            c_m15 = await acct.get_historical_candles(symbol=sym, timeframe="15m", start_time=now-timedelta(hours=2),   limit=8)
-            c_m5  = await acct.get_historical_candles(symbol=sym, timeframe="5m",  start_time=now-timedelta(hours=2),   limit=30)
-            c_d1  = await acct.get_historical_candles(symbol=sym, timeframe="1d",  start_time=now-timedelta(days=3),    limit=3)
-            log.info(f"[{sym}] Candles H4:{len(c_h4)} H1:{len(c_h1)} M15:{len(c_m15)} M5:{len(c_m5)} D1:{len(c_d1)}")
-        except Exception as e:
-            log.warning(f"[{sym}] Candle error: {e} — skip"); continue
-
-        if len(c_d1) >= 2:   dh, dl = c_d1[-2]["high"], c_d1[-2]["low"]
-        elif c_d1:            dh, dl = c_d1[-1]["high"], c_d1[-1]["low"]
-        else:                 dh = dl = bid
-
-        bias   = get_bias(c_h4)
-        sl_smc = GOLD_SL    if sym == "GOLD#" else FX_SL
-        tp_smc = GOLD_TP    if sym == "GOLD#" else FX_TP
-        sl_sb  = GOLD_SB_SL if sym == "GOLD#" else FX_SB_SL
-        tp_sb  = GOLD_SB_TP if sym == "GOLD#" else FX_SB_TP
-        log.info(f"[{sym}] Bias:{bias} DH:{dh:.5f} DL:{dl:.5f} buf:{ob_buf}")
-
-        # Silver Bullet
-        sb_win = None
-        if ny_hour == 3  and not state["sb_london"][sym]: sb_win = "LONDON"
-        if ny_hour == 10 and not state["sb_ny_am"][sym]:  sb_win = "NY_AM"
-        if ny_hour == 14 and not state["sb_ny_pm"][sym]:  sb_win = "NY_PM"
-
-        if sb_win:
-            state[f"sb_{sb_win.lower()}"][sym] = True
-            log.info(f"[{sym}][SB] Window: {sb_win}")
-            if spd > MAX_SPREAD_SB:
-                log.info(f"[{sym}][SB] Spread too high")
-            elif bias == "NEUTRAL":
-                log.info(f"[{sym}][SB] Neutral bias")
-            elif find_liq_sweep(c_m5, bias):
-                fvg = find_fvg(c_m5, bias)
-                if fvg:
-                    ft, fb = fvg; mid = (bid + ask) / 2.0
-                    near = abs(mid-fb) <= ob_buf or abs(mid-ft) <= ob_buf or fb <= mid <= ft
-                    if near and rr_passes(sl_sb, tp_sb, spd):
-                        lot = calc_lot(balance, sl_sb, spd, tv, ts, vmin, vmax, vstp)
-                        if bias == "BULLISH":
-                            ok = await exec_trade(conn, sym, "BUY", ask, ask-sl_sb*pt, ask+tp_sb*pt, lot, "FXA-SB")
-                        else:
-                            ok = await exec_trade(conn, sym, "SELL", bid, bid+sl_sb*pt, bid-tp_sb*pt, lot, "FXA-SB")
-                        if not ok: state["daily_losses"][sym] += 1
-                        total_open += 1
-                    else: log.info(f"[{sym}][SB] Not near FVG or R:R fail")
-                else: log.info(f"[{sym}][SB] No FVG")
-            else: log.info(f"[{sym}][SB] No liq sweep")
-
-        # SMC Daily Sweep
-        if in_sweep and spd <= MAX_SPREAD_SMC:
-            if ask > dh + ob_buf and not state["swept_high"][sym]:
-                state["swept_high"][sym] = True
-                log.info(f"[{sym}][SMC] HIGH SWEPT")
-                cb  = check_close_back(c_m15, "HIGH", dh, dl)
-                bos = confirm_bos(c_h1, "HIGH") if cb else False
-                if cb and bos and rr_passes(sl_smc, tp_smc, spd):
-                    lot = calc_lot(balance, sl_smc, spd, tv, ts, vmin, vmax, vstp)
-                    ok  = await exec_trade(conn, sym, "SELL", bid, bid+sl_smc*pt, bid-tp_smc*pt, lot, "FXA-SMC")
-                    if not ok: state["daily_losses"][sym] += 1
-                    total_open += 1
-                elif not cb or not bos: state["swept_high"][sym] = False
-
-            if bid < dl - ob_buf and not state["swept_low"][sym]:
-                state["swept_low"][sym] = True
-                log.info(f"[{sym}][SMC] LOW SWEPT")
-                cb  = check_close_back(c_m15, "LOW", dh, dl)
-                bos = confirm_bos(c_h1, "LOW") if cb else False
-                if cb and bos and rr_passes(sl_smc, tp_smc, spd):
-                    lot = calc_lot(balance, sl_smc, spd, tv, ts, vmin, vmax, vstp)
-                    ok  = await exec_trade(conn, sym, "BUY", ask, ask-sl_smc*pt, ask+tp_smc*pt, lot, "FXA-SMC")
-                    if not ok: state["daily_losses"][sym] += 1
-                    total_open += 1
-                elif not cb or not bos: state["swept_low"][sym] = False
-        elif in_sweep:
-            log.info(f"[{sym}][SMC] Spread too high")
-        else:
-            log.info(f"[{sym}] Outside sweep session")
-
-    save_state(state)
-    write_heartbeat("completed", balance=balance, open_trades=total_open,
-                    daily_losses=state["daily_losses"], server_time=str(server_time),
-                    last_prices=last_prices)
-
-    await conn.close()
-    log.info("\n[DONE] ✅")
-    log.info(f"[SUMMARY] {state['daily_losses']}")
-
-if __name__ == "__main__":
-    asyncio.run(run_bot())
+        log.info("=== FX AGENT v5.4 START ===")
+        write_heartbeat("STARTING")
+        
+        account = await api.metatrader_account_api.get_account(META_ACCOUNT_ID)
+        if account.state != "DEPLOYED":
+            log.error(f"Account not deployed: {account.state}")
+            write_heartbeat("ERROR", error=f"Account state: {account.state}")
+            return
+        
+        connection = account.get_rpc_connection()
+        await connection.connect()
+        await connection.wait_synchronized(timeout_in_seconds=SYNC_TIMEOUT_SECONDS)
+        
+        history_storage = connection.history_storage
+        
+        account_info = await connection.get_account_information()
+        balance = account_info.get("balance", 0)
+        positions = await connection.get_positions()
+        open_trades = len(positions)
+        
+        log.info(f"[ACCOUNT] Balance={balance:.2f} Open={open_trades}")
+        
+        state = load_state()
+        write_heartbeat("RUNNING", balance, open_trades, state["daily_losses"])
+        
+        if open_trades >= MAX_OPEN_TRADES:
+            log.info("[LIMIT] Max open trades reached")
+            write_heartbeat("MAX_TRADES", balance, open_trades)
+            return
+        
+        for sym in SYMBOLS:
+            if state["daily_losses"][sym] >= MAX_DAILY_LOSSES:
+                log.info(f"[LIMIT] {sym} max daily losses")
+                continue
+            
+            log.info(f"\n[{sym}] === ANALYZING ===")
+            
+            try:
+                spec = await connection.get_symbol_specification(sym)
+                price = await connection.get_symbol_price(sym)
+                ask, bid = price.get("ask", 0), price.get("bid", 0)
+                spread = (ask - bid) / get_point(spec, sym) if ask > bid else 999
+                
+                log.info(f"  [PRICE] ask={ask:.5f} bid={bid:.5f} spread={spread:.1f}")
+                
+                if spread > MAX_SPREAD_SMC:
+                    log.info(f"  [SKIP] Spread too high: {spread:.1f}")
+                    continue
+                
+                candles = await history_storage.get

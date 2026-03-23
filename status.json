@@ -1,8 +1,8 @@
 {
   "agent_version": "5.4",
-  "status": "completed",
-  "last_seen_utc": "2026-03-23T10:24:14.710747+00:00",
-  "server_time_utc": "2026-03-23T10:24:05.143451+00:00",
+  "status": "RUNNING",
+  "last_seen_utc": "2026-03-23T12:41:10.431437+00:00",
+  "server_time_utc": "2026-03-23T12:41:10.431445+00:00",
   "balance": 1623.25,
   "open_trades": 0,
   "daily_losses": {
@@ -12,22 +12,19 @@
   },
   "last_prices": {
     "GOLD#": {
-      "bid": 4274.57,
-      "ask": 4274.9,
-      "spread": 33
+      "ask": 4408.82,
+      "bid": 4408.49
     },
     "EURUSD": {
-      "bid": 1.14885,
-      "ask": 1.14904,
-      "spread": 19
+      "ask": 1.15771,
+      "bid": 1.15749
     },
     "GBPUSD": {
-      "bid": 1.32609,
-      "ask": 1.32631,
-      "spread": 22
+      "ask": 1.33807,
+      "bid": 1.3378
     }
   },
   "error": null,
-  "run_id": "23432557737",
-  "run_number": "51"
+  "run_id": "23437766285",
+  "run_number": "64"
 }

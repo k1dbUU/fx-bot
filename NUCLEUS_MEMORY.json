@@ -170,6 +170,5 @@
       "Create new agents when you identify a profitable gap. Email operator when done.",
       "Self-heal all errors. Never leave a broken agent running without a fix attempt."
     ]
-  },
-  "private_repo_created": true
+  }
 }

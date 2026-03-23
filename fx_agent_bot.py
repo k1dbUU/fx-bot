@@ -19,6 +19,11 @@ import math
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+try:
+    import requests
+except ImportError:
+    requests = None
+
 from metaapi_cloud_sdk import MetaApi
 try:
     from metaapi_cloud_sdk.clients.metaApi.tradeException import TradeException
@@ -170,96 +175,162 @@ def calc_lot(balance, sl_pts, spd, tv, ts, vmin, vmax, vstp):
 
 def find_liq_sweep(candles, bias):
     if len(candles) < 12:
-        return False
-
-def find_ob_flip(candles, direction):
-    if len(candles) < 8:
-        return None
-    return None
-
-def sb_entry_check(sym, bias, ask, bid):
-    ny_hour = get_ny_hour()
-    session = "NONE"
-    if 8 <= ny_hour <= 10:
-        session = "LONDON"
-    elif 10 <= ny_hour <= 12:
-        session = "NY_AM"
-    elif 13 <= ny_hour <= 15:
-        session = "NY_PM"
+        return False, None
     
-    if session == "NONE":
-        return False, session
-    return True, session
+    recent = candles[-12:]
+    current = candles[-1]
+    
+    if bias == "BULLISH":
+        prev_high = max(c["high"] for c in recent[:-1])
+        if current["high"] > prev_high:
+            return True, current["high"]
+    elif bias == "BEARISH":
+        prev_low = min(c["low"] for c in recent[:-1])
+        if current["low"] < prev_low:
+            return True, current["low"]
+    
+    return False, None
+
+async def fetch_candles(api, sym):
+    try:
+        start_time = datetime.now(timezone.utc) - timedelta(days=2)
+        candles = await api.history_storage.get_candles(sym, "1h", start_time)
+        return candles[-24:] if len(candles) > 24 else candles
+    except Exception as e:
+        log.error(f"  [CANDLES] {sym} error: {e}")
+        return []
+
+async def process_symbol(api, conn, sym, state, specs, prices):
+    log.info(f"[PROCESS] {sym} —————————")
+    
+    try:
+        spec = specs.get(sym, {})
+        price = prices.get(sym, {})
+        
+        if not price or not price.get("ask") or not price.get("bid"):
+            log.warning(f"  [SKIP] No price data")
+            return
+        
+        ask, bid = price["ask"], price["bid"]
+        spread_raw = ask - bid
+        point = get_point(spec, sym)
+        spread = spread_raw / point
+        
+        log.info(f"  [PRICE] ask={ask:.5f} bid={bid:.5f} spread={spread:.1f}pts")
+        
+        candles = await fetch_candles(api, sym)
+        if len(candles) < 13:
+            log.warning(f"  [SKIP] Need 13+ candles, got {len(candles)}")
+            return
+        
+        bias = get_bias(candles)
+        log.info(f"  [BIAS] {bias}")
+        
+        if bias == "NEUTRAL":
+            log.info("  [SKIP] Neutral bias")
+            return
+        
+        # Check for liquidity sweep
+        swept, sweep_price = find_liq_sweep(candles, bias)
+        
+        if not swept:
+            log.info("  [SKIP] No liquidity sweep")
+            return
+        
+        log.info(f"  [SWEEP] Detected at {sweep_price}")
+        
+        # Check spread for SMC strategy
+        if spread > MAX_SPREAD_SMC:
+            log.warning(f"  [SKIP] Spread too wide: {spread:.1f}pts")
+            return
+        
+        # Order block logic (simplified)
+        buffer = get_ob_buffer(sym)
+        
+        if bias == "BULLISH":
+            entry = sweep_price + buffer
+            sl_pts = GOLD_SL if sym == "GOLD#" else FX_SL
+            tp_pts = GOLD_TP if sym == "GOLD#" else FX_TP
+        else:
+            entry = sweep_price - buffer
+            sl_pts = GOLD_SL if sym == "GOLD#" else FX_SL
+            tp_pts = GOLD_TP if sym == "GOLD#" else FX_TP
+        
+        if not rr_passes(sl_pts, tp_pts, spread):
+            log.info("  [SKIP] R:R < 1.0")
+            return
+        
+        # Position sizing
+        balance = (await conn.get_account_information())["balance"]
+        tick_value = get_tick_value(spec, sym, ask)
+        tick_size = spec.get("tickSize", point)
+        vol_min = spec.get("minVolume", 0.01)
+        vol_max = spec.get("maxVolume", 100.0)
+        vol_step = spec.get("volumeStep", 0.01)
+        
+        lot = calc_lot(balance, sl_pts, spread, tick_value, tick_size,
+                      vol_min, vol_max, vol_step)
+        
+        # Execute trade
+        if bias == "BULLISH":
+            sl_price = entry - (sl_pts * point)
+            tp_price = entry + (tp_pts * point)
+            action = "ORDER_TYPE_BUY_LIMIT"
+        else:
+            sl_price = entry + (sl_pts * point)
+            tp_price = entry - (tp_pts * point)
+            action = "ORDER_TYPE_SELL_LIMIT"
+        
+        order = {
+            "actionType": action,
+            "symbol": sym,
+            "volume": lot,
+            "openPrice": entry,
+            "stopLoss": sl_price,
+            "takeProfit": tp_price,
+            "comment": f"SMC-Sweep-{AGENT_ID}"
+        }
+        
+        log.info(f"  [ORDER] {action} {lot} lots @ {entry:.5f}")
+        
+        result = await conn.create_limit_order(**order)
+        log.info(f"  [RESULT] orderId={result.get('orderId', 'N/A')}")
+        
+    except Exception as e:
+        log.error(f"  [ERROR] {sym}: {e}")
 
 async def main():
-    state = load_state()
     try:
+        log.info(f"[START] FX Agent Bot v5.4 — {AGENT_ID}")
+        write_heartbeat("starting")
+        
+        state = load_state()
+        
         api = MetaApi(META_API_TOKEN)
         account = await api.metatrader_account_api.get_account(META_ACCOUNT_ID)
         
-        if account.state != 'DEPLOYED':
-            log.error(f"[CONNECT] Account not deployed: {account.state}")
-            write_heartbeat("ERROR", error="Account not deployed")
-            return
+        if account.state != "DEPLOYED":
+            log.warning(f"[ACCOUNT] State: {account.state} — deploying...")
+            await account.deploy()
+            await account.wait_deployed()
         
-        log.info("[CONNECT] Getting RPC connection...")
+        log.info("[CONNECTION] Establishing...")
         conn = account.get_rpc_connection()
         await conn.connect()
+        await conn.wait_synchronized(timeout_in_seconds=SYNC_TIMEOUT_SECONDS)
         
-        try:
-            await conn.wait_synchronized(timeout_in_seconds=SYNC_TIMEOUT_SECONDS)
-            log.info("[CONNECT] RPC synchronized")
-        except Exception as e:
-            log.warning(f"[CONNECT] Sync timeout: {e}")
-        
-        log.info("[DATA] Fetching account info...")
+        # Get account info
         acc_info = await conn.get_account_information()
-        balance = acc_info.get("balance", 0)
-        server_time = acc_info.get("time")
+        balance = acc_info["balance"]
+        server_time = acc_info.get("time", datetime.now(timezone.utc).isoformat())
         
-        positions = await conn.get_positions()
-        open_trades = len(positions)
+        log.info(f"[ACCOUNT] Balance: ${balance:.2f}")
         
-        log.info(f"[ACCOUNT] Balance: {balance:.2f}, Open: {open_trades}")
-        
-        last_prices = {}
+        # Get specifications for all symbols
+        log.info("[SPECS] Loading...")
+        specs = {}
         for sym in SYMBOLS:
             try:
-                price = await conn.get_symbol_price(sym)
-                last_prices[sym] = {"ask": price.get("ask", 0), "bid": price.get("bid", 0)}
-            except Exception as e:
-                log.warning(f"[PRICE] {sym} error: {e}")
-        
-        write_heartbeat("RUNNING", balance, open_trades, state["daily_losses"], 
-                       server_time, last_prices)
-        
-        if not is_sweep_session():
-            log.info("[SESSION] Outside sweep session - skipping")
-            await conn.close()
-            return
-        
-        if sum(state["daily_losses"].values()) >= MAX_DAILY_LOSSES:
-            log.info("[LIMIT] Daily loss limit reached")
-            await conn.close()
-            return
-        
-        if open_trades >= MAX_OPEN_TRADES:
-            log.info("[LIMIT] Max open trades reached")
-            await conn.close()
-            return
-        
-        # Strategy execution would continue here...
-        log.info("[STRATEGY] Analysis complete")
-        
-        save_state(state)
-        await conn.close()
-        
-        write_heartbeat("COMPLETED", balance, open_trades, state["daily_losses"],
-                       server_time, last_prices)
-        
-    except Exception as e:
-        log.error(f"[ERROR] {e}")
-        write_heartbeat("ERROR", error=str(e))
-
-if __name__ == "__main__":
-    asyncio.run(main())
+                spec = await conn.get_symbol_specification(sym)
+                specs[sym] = spec
+                log.info(f"  [SPEC] {sym

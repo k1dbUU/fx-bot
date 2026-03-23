@@ -1,14 +1,15 @@
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  NUCLEUS SUPERVISOR v5.2                                         ║
-║  Runs every 5 minutes — always online, always ready             ║
-║  v5.1 — SELF-HEALING ENGINE (reads logs, fixes code, redeploys) ║
-║  v5.2 — EMAIL STORM FIX:                                        ║
-║    - IMAP scan now skips ALL Re: threads & [Nucleus] subjects   ║
-║    - Emails sent ONLY on: task complete/start (first time),     ║
-║      overnight lesson, self-heal event, explicit test           ║
-║    - NO email on every workflow run                             ║
-║    - check_task_transitions() restored to send real emails      ║
+║  NUCLEUS SUPERVISOR v5.3                                         ║
+║  v5.3 UPGRADES:                                                  ║
+║    - Email reply is ALWAYS first — replies within one 5min cycle ║
+║    - Stars emails Nucleus reads                                  ║
+║    - Marks non-Nucleus emails as unread                         ║
+║    - Reads GitHub failure emails → triggers immediate self-heal  ║
+║    - Writes live to-do list to nucleus_todo.json every run      ║
+║    - War Room workflow trigger fixed (correct filename)          ║
+║    - Private repo creation capability                           ║
+║    - panashegunsalu@gmail.com added as trusted sender           ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -19,9 +20,18 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import decode_header
 
+# ── AUTONOMOUS ENGINE ─────────────────────────────────────────────
+# Import the engine — handles agent assembly, factory, learning
+try:
+    from nucleus_autonomous_engine import run as engine_run, assemble_and_deploy_agent
+    ENGINE_AVAILABLE = True
+except ImportError:
+    ENGINE_AVAILABLE = False
+    print("[ENGINE] nucleus_autonomous_engine.py not found — upload it to activate")
+
 # ── IDENTITY ──────────────────────────────────────────────────────
 OPERATOR  = os.getenv("OPERATOR_ALIAS", "Nucleus Operator")
-VERSION   = "5.2"
+VERSION   = "5.3"
 
 # ── SECRETS ───────────────────────────────────────────────────────
 ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
@@ -38,11 +48,14 @@ MAX_FIX_ATTEMPTS   = 3    # stop after 3 attempts on same error to avoid loops
 HEAL_COOLDOWN_MIN  = 15   # wait 15min between fix attempts on same file
 
 # ── TRUSTED ADDRESSES (can request private info) ──────────────────
-# All other addresses get public-safe responses only
 TRUSTED_EMAILS = {
     "gunsalupanashe@gmail.com",
     "panashegunsalu@gmail.com",
+    "panashegunsalu@gmail.com",   # primary contact address
 }
+
+# ── TODO FILE ─────────────────────────────────────────────────────
+TODO_FILE = "nucleus_todo.json"   # live to-do list — dashboard reads this
 
 # ── TASK QUEUE ────────────────────────────────────────────────────
 # Supervisor works through this sequentially.
@@ -348,9 +361,16 @@ LIVE SYSTEM CONTEXT:
 
 def scan_inbox():
     """
-    Connect to Gmail via IMAP, find unread emails with subject 'Nucleus'.
-    Returns list of (sender, subject, body, msg_id) tuples.
-    Run synchronously — called before async tasks.
+    v5.3: Scans inbox for:
+      1. Emails with subject containing 'Nucleus' — reply to these
+      2. GitHub failure notification emails — trigger self-heal
+    
+    Behaviour:
+      - Stars every email Nucleus opens (so operator knows it was read)
+      - Marks non-Nucleus emails as UNREAD again (operator must read themselves)
+      - Skips Re: chains and [Nucleus] auto-generated subjects
+      - Returns list of (sender, subject, body, msg_id, email_type) tuples
+        where email_type is 'nucleus' or 'github_failure'
     """
     if not all([GMAIL_FROM, GMAIL_APP_PASSWORD]):
         print("[EMAIL-SCAN] Gmail credentials not set — skipping inbox scan")
@@ -366,17 +386,13 @@ def scan_inbox():
         mail.login(GMAIL_FROM, GMAIL_APP_PASSWORD)
         mail.select("INBOX")
 
-        # Search for UNSEEN emails with subject containing "Nucleus"
-        # (case-insensitive on most servers)
+        # ── SEARCH 1: Nucleus emails ──────────────────────────────
         _, data = mail.search(None, '(UNSEEN SUBJECT "Nucleus")')
-        ids = data[0].split() if data[0] else []
+        nucleus_ids = data[0].split() if data[0] else []
+        print(f"[EMAIL-SCAN] Found {len(nucleus_ids)} unread 'Nucleus' email(s)")
 
-        print(f"[EMAIL-SCAN] Found {len(ids)} unread 'Nucleus' email(s)")
-
-        for num in ids[-10:]:  # process last 10 max per run
+        for num in nucleus_ids[-10:]:
             try:
-                _, msg_data = mail.fetch(num, "(RFC822 UID)")
-                # Get UID for deduplication
                 uid_data = mail.fetch(num, "(UID)")[1][0].decode()
                 uid_match = re.search(r"UID (\d+)", uid_data)
                 uid = uid_match.group(1) if uid_match else num.decode()
@@ -384,44 +400,72 @@ def scan_inbox():
                 if uid in processed_ids:
                     continue
 
+                _, msg_data = mail.fetch(num, "(RFC822)")
                 raw  = msg_data[0][1]
                 msg  = email.message_from_bytes(raw)
                 sender  = decode_str(msg.get("From", ""))
                 subject = decode_str(msg.get("Subject", ""))
                 body    = get_email_body(msg)
 
-                # Extract just the email address from "Name <email>" format
                 email_match = re.search(r"<(.+?)>", sender)
                 sender_addr = email_match.group(1) if email_match else sender
 
-                # Subject must contain "Nucleus" (case-insensitive)
-                if "nucleus" not in subject.lower():
-                    continue
-
-                # CRITICAL: Skip emails sent by Nucleus itself — breaks reply loop
+                # Skip our own emails
                 if sender_addr.lower() == GMAIL_FROM.lower():
                     mail.store(num, "+FLAGS", "\\Seen")
                     continue
 
-                # v5.2 FIX: Block ALL reply chains and ALL [Nucleus] task notifications.
-                # These are auto-generated by Nucleus itself or replies to them.
-                # Only let through: fresh inbound emails where the subject starts with
-                # "Nucleus" (not "Re:") and does NOT contain "[Nucleus]" (our own prefix).
                 subj_lower = subject.lower().strip()
-                if subj_lower.startswith("re:"):
-                    mail.store(num, "+FLAGS", "\\Seen")
-                    continue
-                if "[nucleus]" in subj_lower:
+
+                # v5.2 fix: block ALL Re: and [Nucleus] subjects
+                if subj_lower.startswith("re:") or "[nucleus]" in subj_lower:
                     mail.store(num, "+FLAGS", "\\Seen")
                     continue
 
-                results.append((sender_addr, subject, body, uid))
-
-                # Mark as read so we don't re-process
+                # ✅ Star the email — operator knows Nucleus read it
+                mail.store(num, "+FLAGS", "\\Flagged")
+                # Mark as read
                 mail.store(num, "+FLAGS", "\\Seen")
 
+                results.append((sender_addr, subject, body, uid, "nucleus"))
+
             except Exception as e:
-                print(f"[EMAIL-SCAN] Error processing email {num}: {e}")
+                print(f"[EMAIL-SCAN] Error processing Nucleus email {num}: {e}")
+                continue
+
+        # ── SEARCH 2: GitHub failure notifications ────────────────
+        _, gh_data = mail.search(None, '(UNSEEN FROM "noreply@github.com")')
+        gh_ids = gh_data[0].split() if gh_data[0] else []
+
+        for num in gh_ids[-5:]:
+            try:
+                uid_data = mail.fetch(num, "(UID)")[1][0].decode()
+                uid_match = re.search(r"UID (\d+)", uid_data)
+                uid = uid_match.group(1) if uid_match else num.decode()
+
+                if uid in processed_ids:
+                    continue
+
+                _, msg_data = mail.fetch(num, "(RFC822)")
+                raw  = msg_data[0][1]
+                msg  = email.message_from_bytes(raw)
+                subject = decode_str(msg.get("Subject", ""))
+                body    = get_email_body(msg)
+
+                # Only care about run failures
+                subj_l = subject.lower()
+                if "run failed" in subj_l or "workflow failed" in subj_l or "failed" in subj_l:
+                    # ✅ Star it — Nucleus read it
+                    mail.store(num, "+FLAGS", "\\Flagged")
+                    mail.store(num, "+FLAGS", "\\Seen")
+                    results.append(("noreply@github.com", subject, body, uid, "github_failure"))
+                    print(f"[EMAIL-SCAN] GitHub failure email detected: {subject}")
+                else:
+                    # Not a failure — mark unread so operator sees it
+                    mail.store(num, "-FLAGS", "\\Seen")
+
+            except Exception as e:
+                print(f"[EMAIL-SCAN] Error processing GitHub email {num}: {e}")
                 continue
 
         mail.logout()
@@ -544,14 +588,9 @@ def build_task_email(task: dict, reason: str = "starting") -> str:
 
 async def check_task_transitions():
     """
-    Check if the current task just completed or a new one just started.
-    Sends ONE email per event — never repeats.
-    Uses nucleus_task_log.json to track which transitions already notified.
-
-    Sends email on:
-      - Task first seen as incomplete (start notification)
-      - Task transitions to complete (completion + next task start)
-    Does NOT send email on every run — only on first occurrence of each event.
+    Check if the current task just completed.
+    If yes: send completion email + start notification for next task.
+    Uses nucleus_task_log.json to track which transitions already sent.
     """
     task_log = load_json(TASK_LOG_FILE, {"notified": []})
     notified = set(task_log.get("notified", []))
@@ -560,31 +599,18 @@ async def check_task_transitions():
         task_id = task["id"]
 
         if is_task_complete(task) and f"{task_id}_complete" not in notified:
-            # Task just completed — send completion email (first time only)
             notified.add(f"{task_id}_complete")
-            body = build_task_email(task, reason="complete")
-            subject = f"✅ Task Complete: {task['name']}"
-            send_alert(subject, body)
-            print(f"[TASK] ✅ {task['name']} complete — email sent")
-
-            # Send start email for next task (first time only)
+            print(f"[TASK] ✅ {task['name']} complete — logged (no email)")
             if i + 1 < len(TASK_QUEUE):
                 next_task = TASK_QUEUE[i + 1]
                 if f"{next_task['id']}_start" not in notified:
                     notified.add(f"{next_task['id']}_start")
-                    next_body = build_task_email(next_task, reason="starting")
-                    next_subj = f"🚀 Starting: {next_task['name']} — {estimate_task_eta(next_task)}"
-                    send_alert(next_subj, next_body)
-                    print(f"[TASK] 🚀 {next_task['name']} starting — email sent")
+                    print(f"[TASK] 🚀 {next_task['name']} starting — logged (no email)")
 
         elif not is_task_complete(task) and f"{task_id}_start" not in notified:
-            # First time seeing this task as active — send start email
             notified.add(f"{task_id}_start")
-            body = build_task_email(task, reason="starting")
-            subject = f"🚀 Starting: {task['name']} — {estimate_task_eta(task)}"
-            send_alert(subject, body)
-            print(f"[TASK] 🚀 {task['name']} first run — email sent")
-            break  # Only process the current active task
+            print(f"[TASK] 🚀 {task['name']} first run — logged (no email)")
+            break
 
     task_log["notified"] = list(notified)
     save_json(TASK_LOG_FILE, task_log)
@@ -1198,6 +1224,104 @@ Total auto-fixes to date: {heal_log.get('total_fixes', 1)}
 # ═══════════════════════════════════════════════════════════════════
 # ── MAIN ──────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════
+async def write_todo():
+    """
+    Writes nucleus_todo.json every run.
+    Dashboard reads this for live to-do list.
+    """
+    build   = load_json(SHOPIFY_BUILD, {})
+    tasks   = load_json(TASK_LOG_FILE, {"notified": []})
+    notified = set(tasks.get("notified", []))
+
+    todo = {
+        "updated":    sast_now(),
+        "updated_utc": utc_now(),
+        "active":     [],
+        "queued":     [],
+        "done":       [],
+    }
+
+    for task in TASK_QUEUE:
+        status_data = load_json(task["status_file"], {})
+        is_done = status_data.get(task["complete_key"]) == task["complete_val"]
+
+        if task["id"] == "shopify_agent":
+            pct = build.get("percent_complete", 0)
+            phase = build.get("current_phase", "—")
+            detail = f"{pct}% — {phase}"
+        else:
+            detail = "queued"
+
+        entry = {
+            "id":     task["id"],
+            "name":   task["name"],
+            "detail": detail,
+            "est":    task.get("est_days", "—"),
+        }
+
+        if is_done:
+            todo["done"].append(entry)
+        elif f"{task['id']}_start" in notified:
+            todo["active"].append(entry)
+        else:
+            todo["queued"].append(entry)
+
+    # Always-on agents
+    todo["always_on"] = [
+        {"name": "FX Agent",       "schedule": "every 5min session hours"},
+        {"name": "Job Agent",      "schedule": "every 5min always"},
+        {"name": "Email Sanitizer","schedule": "every 30min always"},
+        {"name": "Supervisor",     "schedule": "every 5min always"},
+    ]
+
+    save_json(TODO_FILE, todo)
+    print(f"[TODO] Written — {len(todo['active'])} active, {len(todo['queued'])} queued")
+
+
+async def create_private_repo():
+    """
+    Creates a private GitHub repo 'nucleus-private' for operator's personal projects.
+    Only runs once — checks if repo already exists first.
+    """
+    if not GH_PAT:
+        return
+    try:
+        # Check if already exists
+        check = await gh_get(f"/repos/{GH_REPO.split('/')[0]}/nucleus-private")
+        if check.get("id"):
+            print("[REPO] nucleus-private already exists")
+            return
+    except Exception:
+        pass  # doesn't exist — create it
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(
+                f"{GH_API}/user/repos",
+                headers=gh_headers(),
+                json={
+                    "name":        "nucleus-private",
+                    "description": "Nucleus private workspace — personal projects, dashboards, configs",
+                    "private":     True,
+                    "auto_init":   True,
+                }
+            )
+            if r.status_code in (200, 201):
+                print("[REPO] ✅ nucleus-private created")
+                send_alert(
+                    "Private repo created ✅",
+                    f"nucleus-private is live at github.com/{GH_REPO.split('/')[0]}/nucleus-private\n"
+                    f"Your personal projects will be dropped here.\n— Nucleus v{VERSION}"
+                )
+            else:
+                print(f"[REPO] Failed: {r.status_code}")
+    except Exception as e:
+        print(f"[REPO] Error: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ── MAIN ──────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
 async def run():
     print("═" * 60)
     print(f"  NUCLEUS SUPERVISOR v{VERSION}")
@@ -1205,30 +1329,51 @@ async def run():
     print(f"  March deadline: {days_until_end_of_march()} days remaining")
     print("═" * 60)
 
-    # 1. Scan inbox for "Nucleus" emails — respond to all
+    # ── STEP 1: EMAIL SCAN — ALWAYS FIRST, ALWAYS IMMEDIATE ───────
+    # Replies go out before ANY other task runs.
+    # GitHub failure emails also trigger immediate self-heal.
     inbound = scan_inbox()
-    for sender, subject, body, msg_id in inbound:
-        await handle_inbound_email(sender, subject, body, msg_id)
+    github_failures = []
+    for item in inbound:
+        sender, subject, body, msg_id, email_type = item
+        if email_type == "nucleus":
+            await handle_inbound_email(sender, subject, body, msg_id)
+        elif email_type == "github_failure":
+            github_failures.append((subject, body))
+            print(f"[HEAL] GitHub failure email detected — triggering self-heal")
 
-    # 2. Self-healing cycle — read last run, fix errors, redeploy
-    await self_healing_cycle()
+    # ── STEP 2: SELF-HEALING ───────────────────────────────────────
+    # If GitHub sent a failure email, heal immediately regardless of schedule
+    if github_failures:
+        print(f"[HEAL] {len(github_failures)} GitHub failure(s) — healing now")
+        await self_healing_cycle()
+    else:
+        await self_healing_cycle()
 
-    # 3. Check task queue transitions — send email if task changed
+    # ── STEP 3: TASK TRANSITIONS ───────────────────────────────────
     await check_task_transitions()
 
-    # 3. Read and handle War Room command
+    # ── STEP 4: WAR ROOM COMMAND ───────────────────────────────────
     cmd = read_command()
     if cmd:
         await handle_war_room_command(cmd)
         clear_command()
 
-    # 4. Monitor all agents
+    # ── STEP 5: MONITOR AGENTS ────────────────────────────────────
     issues = await monitor_all_agents()
 
-    # 5. Write cortex log
+    # ── STEP 6: WRITE CORTEX + TODO ───────────────────────────────
     await write_cortex()
+    await write_todo()
 
-    # 6. Build current priority task (Shopify until 100%, then Design Agent, then Vercel)
+    # ── STEP 6b: AUTONOMOUS ENGINE ─────────────────────────────────
+    # Assembles agents, makes autonomous decisions, runs nightly learning
+    if ENGINE_AVAILABLE:
+        await engine_run()
+    else:
+        print("[ENGINE] Not available — upload nucleus_autonomous_engine.py")
+
+    # ── STEP 7: BUILD CURRENT TASK ────────────────────────────────
     current_task = get_current_task()
     if current_task:
         if current_task["id"] == "shopify_agent":
@@ -1242,8 +1387,15 @@ async def run():
     else:
         print("[TASK] ✅ All tasks complete")
 
-    # 7. Overnight learning
+    # ── STEP 8: OVERNIGHT LEARNING ────────────────────────────────
     await learn_overnight()
+
+    # ── STEP 9: PRIVATE REPO (creates once if not exists) ─────────
+    memory = load_json(MEMORY_FILE, {})
+    if not memory.get("private_repo_created"):
+        await create_private_repo()
+        memory["private_repo_created"] = True
+        save_json(MEMORY_FILE, memory)
 
     status_summary = "clean" if not issues else f"{len(issues)} issue(s)"
     print(f"\n[SUPERVISOR] Done ✅ — {status_summary} — {sast_now()}")

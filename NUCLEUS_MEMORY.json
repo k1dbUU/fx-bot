@@ -1,25 +1,61 @@
 {
-  "operator": "K-I-D-B-U-U",
-  "version": "4.0",
-  "last_updated": "2026-03-22",
+  "operator": "Nucleus Operator",
+  "operator_alias_legacy": "K-I-D-B-U-U",
+  "operator_alias_migration": "in progress — see ALIAS_MIGRATION",
+  "version": "5.0",
+  "last_updated": "2026-03-23",
+
   "DEADLINE": {
     "date": "2026-03-31",
-    "mandate": "Revenue must begin flowing from at least one income stream before end of March 2026. If no income by March 31 \u2014 Nucleus resets. This is not a suggestion. This is the operating constraint.",
+    "mandate": "Revenue must begin flowing from at least one income stream before end of March 2026. If no income by March 31 — Nucleus resets. This is not a suggestion. This is the operating constraint.",
     "income_streams": [
-      "FX Agent \u2014 demo account active, live account funding required to generate real P&L",
-      "Job Agent \u2014 applications must go out and land interviews before month end",
-      "Shopify Agent \u2014 must be built and operational before month end"
-    ],
-    "honest_assessment": "Today is March 22. 9 days remain. FX cannot generate income until live account is funded. Job applications need regex fix uploaded first. Shopify Agent needs to be built. All three streams require immediate action."
+      "FX Agent — demo account active, live account funding required to generate real P&L",
+      "Job Agent — applications going out every 5min, replies being tracked",
+      "Shopify Agent — being built now, one phase per run",
+      "Email Sanitizer — live 24/7, inbox being cleaned"
+    ]
   },
+
   "PRIORITY_TASKS": {
-    "1": "Upload kidbuu_job_agent.py v5.2 to GitHub \u2014 unblocks all job applications immediately",
-    "2": "Supervisor builds Shopify Agent \u2014 one phase per 5min run \u2014 12 phases total \u2014 started now",
-    "3": "Fund live XM account \u2014 unlocks real FX trading revenue",
-    "4": "Deploy dashboard to Vercel \u2014 enables iPhone access for monitoring on the go"
+    "1": "Shopify Agent — build all 12 phases, then activate live dashboard module",
+    "2": "Email Sanitizer — running 24/7, deep clean inbox history going back 2 years",
+    "3": "Fund live XM account — unlocks real FX trading revenue",
+    "4": "Deploy dashboard to Vercel — mobile access",
+    "5": "Alias migration — remove KidBuu/K-I-D-B-U-U references gradually per migration plan"
   },
+
+  "EMAIL_CLEANER_MANDATE": {
+    "instruction": "Nucleus Email Sanitizer runs every 30min. Permanently delete: spam, phishing, scams, unsolicited marketing, expired promos, old newsletters, social notifications. Always protect: receipts, invoices, bank emails, booking confirmations, 2FA codes, human-to-human emails, job replies, Nucleus system emails. Move uncertain emails to [NUCLEUS_REVIEW]. Send one daily summary at 20:00 SAST only — no per-deletion emails.",
+    "system_prompt_location": "nucleus_email_sanitizer.py — CLAUDE_EMAIL_SYSTEM_PROMPT constant",
+    "status_file": "email_sanitizer_status.json",
+    "purge_log": "email_purge_log.json"
+  },
+
+  "ACTIVE_DASHBOARD_MANDATE": {
+    "rule": "No agent ever finishes. 100% complete = activation, not retirement.",
+    "on_agent_complete": [
+      "Write live telemetry to agent status file",
+      "Patch nucleus_dashboard_v5.html to inject Live Module for that agent",
+      "Commit updated dashboard to repo",
+      "Email operator: '[Agent] is now LIVE — dashboard updated'"
+    ],
+    "live_module_must_include": ["status pill ACTIVE/PAUSED/ERROR", "last run time", "key live metric", "Run Now button", "Pause toggle", "last 5 actions log"]
+  },
+
+  "ALIAS_MIGRATION": {
+    "status": "Step 1 in progress",
+    "steps": {
+      "1": "DONE_WHEN_WORKFLOW_DEPLOYED — Change OPERATOR_ALIAS in workflow from K-I-D-B-U-U to 'Nucleus Operator'",
+      "2": "QUEUED — Create nucleus_job_agent.py shim that imports kidbuu_job_agent. Update workflow to call nucleus_job_agent.py",
+      "3": "QUEUED — Update status_file agent field from kidbuu_job_agent to nucleus_job_agent",
+      "4": "QUEUED — Update NUCLEUS_MEMORY.json job_agent file reference",
+      "5": "FINAL — Rename kidbuu_job_agent.py to nucleus_job_agent.py after 3+ days stable"
+    },
+    "do_not_touch": ["GitHub username k1dbUU", "repo name fx-bot", "raw URLs in dashboard"]
+  },
+
   "SHOPIFY_AGENT_MANDATE": {
-    "instruction": "Supervisor must build the Shopify Agent autonomously. One phase per run. 12 phases. Every 5 minutes. Do not wait for operator input between phases. Report progress in cortex log and email at 25/50/75/100%.",
+    "instruction": "Supervisor must build the Shopify Agent autonomously. One phase per run. 12 phases. Every 5 minutes. Do not wait for operator input between phases. On completion: activate live dashboard module, do NOT just mark 100%.",
     "capabilities_required": [
       "Shopify API auth and connection",
       "Product catalogue management (add/edit/delete)",
@@ -29,23 +65,25 @@
       "Voice command parser",
       "Voice ordering integration",
       "Autonomous monitoring and self-healing"
-    ],
-    "deadline": "Must be operational before March 31 2026"
+    ]
   },
+
   "nucleus_rules": [
-    "Accuracy above all \u2014 never hallucinate data. Every response must come from real files.",
+    "Accuracy above all — never hallucinate data. Every response must come from real files.",
     "Supervisor runs every 5 minutes regardless of market hours or agent activity",
-    "All secrets via GitHub Secrets \u2014 never hardcode credentials",
-    "K-I-D-B-U-U alias on all repo-facing code \u2014 no real names in public files",
+    "All secrets via GitHub Secrets — never hardcode credentials",
+    "No real names in public repo files",
     "Leak scanner runs before every log write, email, and output",
     "Both USD and ZAR on every financial figure",
-    "End of March deadline is hard \u2014 no extensions",
-    "Shopify Agent build is Priority Task 1 \u2014 Supervisor works on it every single run"
+    "100% complete means ACTIVATE, not RETIRE — always inject live dashboard module",
+    "Email cleaner runs every 30min — one daily summary only, no per-deletion spam",
+    "Alias migration is gradual — one step per day minimum, never break the repo"
   ],
+
   "architecture": {
     "supervisor": {
       "file": "nucleus_supervisor.py",
-      "version": "4.0",
+      "version": "5.2",
       "runs": "every 5min always"
     },
     "fx_agent": {
@@ -55,64 +93,52 @@
     },
     "job_agent": {
       "file": "kidbuu_job_agent.py",
-      "version": "5.2",
-      "runs": "every 5min always"
+      "version": "5.6",
+      "runs": "every 5min always (offset 2-57/5)",
+      "migration_target": "nucleus_job_agent.py"
     },
     "shopify_agent": {
       "file": "shopify_agent.py",
       "version": "building",
       "runs": "when complete"
+    },
+    "email_sanitizer": {
+      "file": "nucleus_email_sanitizer.py",
+      "version": "1.0",
+      "runs": "every 30min always"
     }
   },
+
   "cost_monthly": {
     "metaapi": "$2.14 / R39.59",
     "anthropic": "~$2.00 / ~R37.00",
-    "github": "$0 \u2014 unlimited on public repo",
+    "github": "$0 — unlimited on public repo",
     "total": "~$4.14 / ~R76.59"
   },
-  "lessons": [
-    {
-      "timestamp": "2026-03-23T03:19:07.048885+00:00",
-      "lesson": "Since the FX system has been OFFLINE for multiple consecutive runs while jobs continue to be processed sporadically, implement an automated alert system that triggers when critical data feeds remain offline for more than 2-3 consecutive monitoring cycles."
-    },
-    {
-      "timestamp": "2026-03-22T23:47:10.536013+00:00",
-      "lesson": "Monitor the FX status more closely - the system has been stuck in OFFLINE mode with identical exchange rates across multiple runs, indicating a potential data feed issue that could affect trading decisions."
-    },
-    {
-      "timestamp": "2026-03-22T22:30:59.485673+00:00",
-      "lesson": "Implement job throttling or batching logic to prevent excessive skipping (consistently 50-60 jobs skipped per run) which indicates inefficient resource allocation or overly restrictive filtering criteria."
-    }
-  ],
-  "last_lesson_utc": "2026-03-23T03:19:07.048926+00:00",
+
+  "lessons": [],
+  "last_lesson_utc": null,
+
   "evolution_log": [
     {
-      "timestamp": "2026-03-23T03:19:07.048932+00:00",
-      "event": "Lesson by Supervisor v5.2"
+      "timestamp": "2026-03-23T00:00:00+00:00",
+      "event": "Nucleus v5.0 — Email cleaner mandate added, active dashboard rule enforced, alias migration started, operator alias changing from K-I-D-B-U-U to Nucleus Operator"
     },
     {
-      "timestamp": "2026-03-22T23:47:10.536029+00:00",
-      "event": "Lesson by Supervisor v5.2"
-    },
-    {
-      "timestamp": "2026-03-22T22:30:59.485688+00:00",
-      "event": "Lesson by Supervisor v5.2"
+      "timestamp": "2026-03-22T21:00:00+00:00",
+      "event": "Nucleus v5.2 — Email storm fixed, task transition emails restored, IMAP filter hardened"
     },
     {
       "timestamp": "2026-03-22T16:00:00+00:00",
-      "event": "Nucleus v4.0 \u2014 Supervisor independent 5min cycle, Shopify build started, March deadline encoded"
+      "event": "Nucleus v5.1 — Self-healing engine added, reads logs, fixes code, redeploys"
     },
     {
       "timestamp": "2026-03-22T14:00:00+00:00",
-      "event": "Nucleus v3.0 \u2014 FX + Job + Supervisor fully deployed, War Room dashboard live"
-    },
-    {
-      "timestamp": "2026-03-22T10:00:00+00:00",
-      "event": "FX Agent v5.4 \u2014 all bugs fixed, live data confirmed"
+      "event": "Nucleus v4.0 — Supervisor independent 5min cycle, Shopify build started"
     },
     {
       "timestamp": "2026-03-22T08:30:00+00:00",
-      "event": "First successful FX run \u2014 ZAR 1623.25, all 3 symbols processing"
+      "event": "First successful FX run — ZAR 1623.25, all 3 symbols processing"
     }
   ]
 }

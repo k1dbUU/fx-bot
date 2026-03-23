@@ -1,5 +1,5 @@
 {
-  "date": "2026-03-22",
+  "date": "2026-03-23",
   "daily_losses": {
     "GOLD#": 0,
     "EURUSD": 0,
@@ -21,13 +21,13 @@
     "GBPUSD": false
   },
   "sb_ny_am": {
-    "GOLD#": true,
-    "EURUSD": true,
-    "GBPUSD": true
+    "GOLD#": false,
+    "EURUSD": false,
+    "GBPUSD": false
   },
   "sb_ny_pm": {
-    "GOLD#": true,
-    "EURUSD": true,
-    "GBPUSD": true
+    "GOLD#": false,
+    "EURUSD": false,
+    "GBPUSD": false
   }
 }

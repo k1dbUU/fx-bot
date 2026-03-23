@@ -1,19 +1,30 @@
-name: Nucleus — FX + Jobs + Supervisor (24/7)
+name: Nucleus — FX + Jobs + Supervisor + Email Sanitizer (24/7)
 # Operator: K-I-D-B-U-U
-# Repo: PUBLIC — unlimited free GitHub Actions minutes
+# v2 FIX — two changes:
+#   1. Job Agent gets its own unique cron string so GitHub doesn't
+#      deduplicate it against the Supervisor trigger
+#   2. Job Agent timeout dropped 55 → 12min so it finishes before
+#      the next cycle fires, preventing queue stacking
 # All secrets via GitHub Secrets — nothing hardcoded
-# Supervisor runs every 5min INDEPENDENTLY — always online
 
 on:
   schedule:
-    # ── Supervisor: every 5min always — reads commands, builds Shopify, monitors
+    # ── Supervisor: every 5min always (xx:00, xx:05, xx:10...)
     - cron: "*/5 * * * *"
+
+    # ── Job Agent: every 5min, offset by 2min (xx:02, xx:07, xx:12...)
+    #    MUST be a different cron string from Supervisor or GitHub deduplicates
+    - cron: "2-57/5 * * * *"
+
     # ── FX Agent: every 5min Mon-Thu session 13:00-19:55 UTC (15:00 SAST)
     - cron: "*/5 13-19 * * 1-4"
+
     # ── FX Agent: NY AM Silver Bullet window
     - cron: "0 10 * * 1-4"
-    # ── Job Agent: every 5min always — fastest command response
-    - cron: "*/5 * * * *"
+
+    # ── Email Sanitizer: every 30min always
+    - cron: "*/30 * * * *"
+
   workflow_dispatch:
 
 jobs:
@@ -54,14 +65,14 @@ jobs:
         run: |
           git config user.name  "nucleus-bot"
           git config user.email "bot@nucleus.local"
-          git add -A || true
+          git add cortex_log.json NUCLEUS_MEMORY.json shopify_build_log.json \
+                  nucleus_command.json nucleus_email_log.json nucleus_task_log.json \
+                  nucleus_heal_log.json || true
           git diff --staged --quiet || git commit -m "supe: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          git stash || true
           git pull --rebase origin main || true
-          git stash pop || true
           git push || true
 
-  # ── FX AGENT + SUPERVISOR COMBO (session hours) ────────────────
+  # ── FX AGENT (session hours only) ─────────────────────────────
   fx-agent:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -108,14 +119,16 @@ jobs:
           git pull --rebase origin main || true
           git push || true
 
-  # ── JOB AGENT (every 5min — reads commands immediately) ────────
+  # ── JOB AGENT (every 5min offset — 12min hard cap) ─────────────
+  # FIX: timeout 55 → 12min. Agent sends max ~3 emails per run.
+  # This ensures it ALWAYS finishes before the next cycle.
   job-agent:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 12
     name: Job Agent
     if: |
       github.event_name == 'workflow_dispatch' ||
-      github.event.schedule == '*/5 * * * *'
+      github.event.schedule == '2-57/5 * * * *'
 
     steps:
       - uses: actions/checkout@v4
@@ -151,10 +164,10 @@ jobs:
 
       - name: Run Job Agent
         env:
-          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
-          GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          OPERATOR_ALIAS:     K-I-D-B-U-U
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_FROM:           ${{ secrets.GMAIL_FROM }}
+          GMAIL_APP_PASSWORD:   ${{ secrets.GMAIL_APP_PASSWORD }}
+          OPERATOR_ALIAS:       K-I-D-B-U-U
           NUCLEUS_COMMAND_FILE: nucleus_command.json
         run: python kidbuu_job_agent.py
 
@@ -165,5 +178,45 @@ jobs:
           git config user.email "bot@nucleus.local"
           git add applied_jobs.json bounced_emails.json job_agent_log.txt job_agent_status.json || true
           git diff --staged --quiet || git commit -m "jobs: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git pull --rebase origin main || true
+          git push || true
+
+  # ── EMAIL SANITIZER (every 30min, 24/7 deep clean) ─────────────
+  email-sanitizer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    name: Email Sanitizer
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '*/30 * * * *'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install httpx
+
+      - name: Run Email Sanitizer
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
+          GMAIL_TO:           ${{ secrets.GMAIL_TO }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OPERATOR_ALIAS:     K-I-D-B-U-U
+        run: python nucleus_email_sanitizer.py
+
+      - name: Commit sanitizer outputs
+        if: always()
+        run: |
+          git config user.name  "nucleus-bot"
+          git config user.email "bot@nucleus.local"
+          git add email_sanitizer_status.json email_purge_log.json || true
+          git diff --staged --quiet || git commit -m "email: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git pull --rebase origin main || true
           git push || true

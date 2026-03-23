@@ -192,6 +192,34 @@
   },
   "lessons": [
     {
+      "timestamp": "2026-03-23T23:24:41.932506+00:00",
+      "lesson": "When the FX market status changes from \"IN SESSION\" to \"OFFLINE\" (as seen between runs #97 and #101), implement a different job processing strategy instead of continuing to skip all 60 jobs during offline hours."
+    },
+    {
+      "timestamp": "2026-03-23T23:24:38.223930+00:00",
+      "lesson": "LESSON: South Africa's luxury pet furniture market presents untapped opportunity given global 9.2% CAGR growth while local pet market reached R7.1 billion in 2023. | UPGRADE: YES | Global luxury pet trends meeting established South African market.",
+      "source": "learning",
+      "topic": "luxury pet furniture market south africa 2026"
+    },
+    {
+      "timestamp": "2026-03-23T23:24:33.961341+00:00",
+      "lesson": "LESSON: The AI agent framework landscape in 2026 centers around LangGraph, CrewAI, AutoGen, and Agency Swarm as the top Python options. | UPGRADE: YES | These frameworks enable building autonomous systems like myself.",
+      "source": "learning",
+      "topic": "best free Python AI agent frameworks 2026"
+    },
+    {
+      "timestamp": "2026-03-23T23:24:29.916095+00:00",
+      "lesson": "LESSON: Small businesses in 2026 achieve $500-2000 monthly savings and 20+ hour reductions through affordable AI automation tools under $20/month. | UPGRADE: YES | Quantified ROI data validates immediate automation investment opportunities.",
+      "source": "learning",
+      "topic": "AI automation services small business 2026"
+    },
+    {
+      "timestamp": "2026-03-23T23:24:25.606714+00:00",
+      "lesson": "LESSON: Use time.process_time() instead of standard timing tools to accurately measure asyncio performance in Python applications. | UPGRADE: YES | Reveals CPU-specific measurement technique for async code profiling.",
+      "source": "learning",
+      "topic": "async Python performance GitHub Actions"
+    },
+    {
       "timestamp": "2026-03-23T22:54:34.706261+00:00",
       "lesson": "LESSON: ICT's 2026 updates emphasize live trade execution with CISD (Current Internal Structure Displacement) for precise entry timing. | UPGRADE: YES | Live execution focus improves real-time decision making skills.",
       "source": "learning",
@@ -218,34 +246,18 @@
     {
       "timestamp": "2026-03-23T22:16:48.739583+00:00",
       "lesson": "The agent should investigate why job processing completely stops when FX markets go OFFLINE, as this suggests critical system dependency that could be causing unnecessary operational downtime."
-    },
-    {
-      "timestamp": "2026-03-23T22:16:45.156198+00:00",
-      "lesson": "LESSON: The ReAct pattern (Reason-Act-Observe) delivers transparency and reduces hallucinations by grounding agent decisions in real-world feedback loops. | UPGRADE: YES | Makes agents auditable and reduces costly AI errors significantly.",
-      "source": "learning",
-      "topic": "autonomous agent design patterns 2026"
-    },
-    {
-      "timestamp": "2026-03-23T22:16:40.973714+00:00",
-      "lesson": "LESSON: South Africa's R7.1 billion pet market with 1% growth suggests luxury furniture represents untapped premium opportunity. | UPGRADE: YES | Global 9.2% CAGR versus SA's 1% indicates massive growth potential.",
-      "source": "learning",
-      "topic": "luxury pet furniture market south africa 2026"
-    },
-    {
-      "timestamp": "2026-03-23T22:16:36.836447+00:00",
-      "lesson": "LESSON: Use Shopify's official Python API library with pyactiveresource for programmatic admin access to store data. | UPGRADE: YES | Official library provides ActiveResource interface for reliable operations.",
-      "source": "learning",
-      "topic": "Shopify API automation Python 2026"
-    },
-    {
-      "timestamp": "2026-03-23T22:16:32.792041+00:00",
-      "lesson": "LESSON: Use setup-python action in GitHub Actions for consistent Python async performance testing across different runners. | UPGRADE: YES | Ensures reproducible async benchmarks across CI/CD environments consistently.",
-      "source": "learning",
-      "topic": "async Python performance GitHub Actions"
     }
   ],
-  "last_lesson_utc": "2026-03-23T22:16:48.739595+00:00",
+  "last_lesson_utc": "2026-03-23T23:24:41.932518+00:00",
   "evolution_log": [
+    {
+      "timestamp": "2026-03-23T23:24:41.932521+00:00",
+      "event": "Lesson by Supervisor v5.4"
+    },
+    {
+      "timestamp": "2026-03-23T23:24:38.224120+00:00",
+      "event": "Learning: 4 lessons, 4 upgrades"
+    },
     {
       "timestamp": "2026-03-23T22:54:34.706446+00:00",
       "event": "Learning: 4 lessons, 4 upgrades"

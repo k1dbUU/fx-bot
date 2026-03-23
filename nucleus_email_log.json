@@ -247,7 +247,15 @@
       "trusted": true,
       "responded": "2026-03-23T14:43:03.310390+00:00",
       "preview": "**System Response:**\n\n**Multi-tasking capability:** Currently sequential processing only. To enable "
+    },
+    {
+      "id": "3832",
+      "from": "notifications@github.com",
+      "subject": "[k1dbUU/fx-bot] Run failed: Nucleus \u2014 FX + Jobs + Supervisor + Email Sanitizer (24/7) - main (8d0c988)",
+      "trusted": false,
+      "responded": "2026-03-23T15:42:53.726479+00:00",
+      "preview": "Acknowledged. Shopify Store Manager job failed in the latest workflow run (8d0c988) at 15:03 UTC.\n\nC"
     }
   ],
-  "last_scan": "2026-03-23T14:43:03.310407+00:00"
+  "last_scan": "2026-03-23T15:42:53.726493+00:00"
 }

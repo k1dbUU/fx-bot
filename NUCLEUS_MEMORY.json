@@ -192,6 +192,30 @@
   },
   "lessons": [
     {
+      "timestamp": "2026-03-23T23:53:51.239765+00:00",
+      "lesson": "LESSON: Implement AI-powered content optimization and stricter authentication protocols now to prepare for 2026's evolved spam detection systems. | UPGRADE: YES | AI spam detection requires proactive content and authentication upgrades.",
+      "source": "learning",
+      "topic": "email deliverability best practices 2026"
+    },
+    {
+      "timestamp": "2026-03-23T23:53:46.950886+00:00",
+      "lesson": "LESSON: Focus on production-ready frameworks with proven track records rather than hyped solutions that fail in demos. | UPGRADE: YES | Production reliability beats marketing hype for sustainable development.",
+      "source": "learning",
+      "topic": "best free Python AI agent frameworks 2026"
+    },
+    {
+      "timestamp": "2026-03-23T23:53:42.066286+00:00",
+      "lesson": "LESSON: Focus on high-paying remote roles (R55k+) in tech and digital marketing to access global salaries while living in South Africa. | UPGRADE: YES | Global salary arbitrage maximizes purchasing power locally.",
+      "source": "learning",
+      "topic": "remote work south africa opportunities 2026"
+    },
+    {
+      "timestamp": "2026-03-23T23:53:37.874236+00:00",
+      "lesson": "LESSON: Claude 4.6 introduces 1M token context window and enhanced agentic capabilities for sustained autonomous tasks. | UPGRADE: YES | Massive context window enables complex multi-step autonomous operations.",
+      "source": "learning",
+      "topic": "Claude API new features capabilities 2026"
+    },
+    {
       "timestamp": "2026-03-23T23:24:41.932506+00:00",
       "lesson": "When the FX market status changes from \"IN SESSION\" to \"OFFLINE\" (as seen between runs #97 and #101), implement a different job processing strategy instead of continuing to skip all 60 jobs during offline hours."
     },
@@ -250,6 +274,10 @@
   ],
   "last_lesson_utc": "2026-03-23T23:24:41.932518+00:00",
   "evolution_log": [
+    {
+      "timestamp": "2026-03-23T23:53:51.239961+00:00",
+      "event": "Learning: 4 lessons, 4 upgrades"
+    },
     {
       "timestamp": "2026-03-23T23:24:41.932521+00:00",
       "event": "Lesson by Supervisor v5.4"

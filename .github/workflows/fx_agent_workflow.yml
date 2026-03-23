@@ -220,3 +220,44 @@ jobs:
           git diff --staged --quiet || git commit -m "email: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git pull --rebase origin main || true
           git push || true
+
+  # ── SHOPIFY STORE MANAGER ─────────────────────────────────────────
+  shopify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    name: Shopify Store Manager
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '*/30 * * * *'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install httpx
+
+      - name: Run Shopify Store Manager
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_FROM:         ${{ secrets.GMAIL_FROM }}
+          GMAIL_TO:           ${{ secrets.GMAIL_TO }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GH_PAT:             ${{ secrets.GH_PAT }}
+          OPERATOR_ALIAS:     Nucleus Operator
+        run: python shopify_agent.py
+
+      - name: Commit outputs
+        if: always()
+        run: |
+          git config user.name  "nucleus-bot"
+          git config user.email "bot@nucleus.local"
+          git add shopify_agent_status.json || true
+          git diff --staged --quiet || git commit -m "shopify: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git pull --rebase origin main || true
+          git push || true

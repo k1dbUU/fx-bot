@@ -191,7 +191,31 @@
       "trusted": false,
       "responded": "2026-03-23T12:40:04.999457+00:00",
       "preview": "GitHub Actions workflow failed at 12:30 UTC. Two agents down:\n\n**FX Agent**: Failed with 2 annotatio"
+    },
+    {
+      "id": "3821",
+      "from": "notifications@github.com",
+      "subject": "[k1dbUU/fx-bot] Run failed: Nucleus \u2014 FX + Jobs + Supervisor + Email Sanitizer (24/7) - main (da0ae7c)",
+      "trusted": false,
+      "responded": "2026-03-23T12:56:49.980657+00:00",
+      "preview": "**GitHub Workflow Failure Acknowledged**\n\nThe latest workflow run failed at 12:47:04 UTC with two cr"
+    },
+    {
+      "id": "3822",
+      "from": "notifications@github.com",
+      "subject": "[k1dbUU/fx-bot] Run failed: Nucleus \u2014 FX + Jobs + Supervisor + Email Sanitizer (24/7) - main (5f763c0)",
+      "trusted": false,
+      "responded": "2026-03-23T12:56:58.453410+00:00",
+      "preview": "GitHub workflow run failed due to Shopify Store Manager issues (2 annotations). All other components"
+    },
+    {
+      "id": "3823",
+      "from": "notifications@github.com",
+      "subject": "[k1dbUU/fx-bot] Run failed: Nucleus \u2014 FX + Jobs + Supervisor + Email Sanitizer (24/7) - main (9bffe9a)",
+      "trusted": false,
+      "responded": "2026-03-23T12:57:07.693456+00:00",
+      "preview": "The GitHub Actions workflow failed due to issues with FX Agent and Shopify Store Manager components."
     }
   ],
-  "last_scan": "2026-03-23T12:40:04.999477+00:00"
+  "last_scan": "2026-03-23T12:57:07.693472+00:00"
 }

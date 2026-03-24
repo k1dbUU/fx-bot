@@ -1,285 +1,62 @@
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  NUCLEUS SUPERVISOR v5.3                                         ║
-║  v5.3 UPGRADES:                                                  ║
-║    - Email reply is ALWAYS first — replies within one 5min cycle ║
-║    - Stars emails Nucleus reads                                  ║
-║    - Marks non-Nucleus emails as unread                         ║
-║    - Reads GitHub failure emails → triggers immediate self-heal  ║
-║    - Writes live to-do list to nucleus_todo.json every run      ║
-║    - War Room workflow trigger fixed (correct filename)          ║
-║    - Private repo creation capability                           ║
-║    - panashegunsalu@gmail.com added as trusted sender           ║
+║  NUCLEUS SUPERVISOR v5.6                                         ║
+║  v5.6 PATCHES:                                                   ║
+║    - AGENTS registry: Lens Agent + Email Sanitizer added        ║
+║    - build_system_context: Lens Agent status in all emails      ║
+║    - write_todo: Lens Agent in always_on block                  ║
+║    - send_eod_summary: Lens Agent daily report line             ║
+║    - self_healing_cycle: knows nucleus_lens_agent.py +          ║
+║      nucleus_email_sanitizer.py file names                      ║
+║    - VERSION bumped to 5.6                                      ║
 ╚══════════════════════════════════════════════════════════════════╝
+
+HOW TO USE THIS FILE:
+  This is NOT a full replacement — it is a patch guide.
+  In GitHub, open nucleus_supervisor.py and make these 5 targeted changes.
+  Each section is clearly marked with FIND → REPLACE.
+
+  Alternatively: replace nucleus_supervisor.py entirely with the
+  full file below (scroll to FULL FILE section).
 """
 
-import os, json, asyncio, smtplib, imaplib, email, httpx, re
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.header import decode_header
+# ════════════════════════════════════════════════════════════════════
+# PATCH 1 — AGENTS REGISTRY (line ~121)
+# FIND this exact block and REPLACE with the one below
+# ════════════════════════════════════════════════════════════════════
 
-# ── AUTONOMOUS ENGINE ─────────────────────────────────────────────
-# Import the engine — handles agent assembly, factory, learning
-try:
-    from nucleus_autonomous_engine import run as engine_run, assemble_and_deploy_agent
-    ENGINE_AVAILABLE = True
-except ImportError:
-    ENGINE_AVAILABLE = False
-    print("[ENGINE] nucleus_autonomous_engine.py not found — upload it to activate")
-
-# ── TESTING ROOM ──────────────────────────────────────────────────
-try:
-    from nucleus_testing_room import run_testing_room, sunday_self_audit
-    TESTING_ROOM_AVAILABLE = True
-except ImportError:
-    TESTING_ROOM_AVAILABLE = False
-    print("[TESTING ROOM] nucleus_testing_room.py not found")
-
-# ── IDENTITY ──────────────────────────────────────────────────────
-OPERATOR  = os.getenv("OPERATOR_ALIAS", "Nucleus Operator")
-VERSION   = "5.4"
-
-# ── SECRETS ───────────────────────────────────────────────────────
-ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
-GMAIL_FROM         = os.getenv("GMAIL_FROM", "")
-GMAIL_TO           = os.getenv("GMAIL_TO", "")
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
-GH_PAT             = os.getenv("GH_PAT", "")          # GitHub Personal Access Token
-
-# ── SELF-HEALING CONFIG ───────────────────────────────────────────
-GH_REPO            = "k1dbUU/fx-bot"
-GH_WORKFLOW_ID     = "fx_agent_workflow.yml"
-HEAL_LOG_FILE      = "nucleus_heal_log.json"
-MAX_FIX_ATTEMPTS   = 3    # stop after 3 attempts on same error to avoid loops
-HEAL_COOLDOWN_MIN  = 15   # wait 15min between fix attempts on same file
-
-# ── TRUSTED ADDRESSES (can request private info) ──────────────────
-TRUSTED_EMAILS = {
-    "gunsalupanashe@gmail.com",
-    "panashegunsalu@gmail.com",
-    "panashegunsalu@gmail.com",   # primary contact address
-}
-
-# ── TODO FILE ─────────────────────────────────────────────────────
-TODO_FILE = "nucleus_todo.json"   # live to-do list — dashboard reads this
-
-# ── TASK QUEUE ────────────────────────────────────────────────────
-# Supervisor works through this sequentially.
-# Each task has: id, name, description, estimated_days, depends_on
-TASK_QUEUE = [
-    {
-        "id":            "shopify_agent",
-        "name":          "Shopify Agent Build",
-        "description":   "Build 12-phase autonomous Shopify store manager. Voice ordering, catalogue, inventory, self-healing.",
-        "est_days":      0.5,   # ~12 phases × 5min = ~1h
-        "milestones":    ["API auth", "Product CRUD", "Image upload", "Inventory", "Pricing", "Orders", "Voice parser", "Voice ordering", "Monitoring", "Self-healing", "Security", "Deploy"],
-        "status_file":   "shopify_build_log.json",
-        "complete_key":  "percent_complete",
-        "complete_val":  100,
-    },
-    {
-        "id":            "design_agent",
-        "name":          "Design Agent — Stitch Integration",
-        "description":   "Build Design Agent: connects to Google Stitch, generates 4 dashboard themes (2 dark, 2 light) twice daily, deploys selected theme to dashboard automatically via GitHub commit.",
-        "est_days":      1,
-        "milestones":    ["Stitch API integration", "Theme generation loop", "Theme storage in repo", "Supervisor patch function", "Dashboard theme selector"],
-        "status_file":   "design_agent_status.json",
-        "complete_key":  "complete",
-        "complete_val":  True,
-    },
-    {
-        "id":            "vercel_deploy",
-        "name":          "Vercel Deploy — Mobile Access",
-        "description":   "Deploy Nucleus dashboard to Vercel for mobile access from any device. Auto-redeploy on every GitHub push.",
-        "est_days":      0.5,
-        "milestones":    ["Vercel project setup", "GitHub integration", "Environment variables", "Custom domain (optional)", "Mobile test"],
-        "status_file":   "vercel_status.json",
-        "complete_key":  "deployed",
-        "complete_val":  True,
-    },
-]
-
-# ── SHOPIFY BUILD PHASES ──────────────────────────────────────────
-SHOPIFY_PHASES = [
-    {"id": 1,  "name": "Architecture design",          "pct": 5},
-    {"id": 2,  "name": "Shopify API auth + connection", "pct": 12},
-    {"id": 3,  "name": "Product catalogue CRUD",        "pct": 22},
-    {"id": 4,  "name": "Image upload handler",          "pct": 30},
-    {"id": 5,  "name": "Inventory management",          "pct": 40},
-    {"id": 6,  "name": "Pricing engine",                "pct": 48},
-    {"id": 7,  "name": "Order processing",              "pct": 58},
-    {"id": 8,  "name": "Voice command parser",          "pct": 68},
-    {"id": 9,  "name": "Voice ordering integration",    "pct": 78},
-    {"id": 10, "name": "Autonomous monitoring loop",    "pct": 88},
-    {"id": 11, "name": "Security audit + leak scan",    "pct": 94},
-    {"id": 12, "name": "Final integration + deploy",    "pct": 100},
-]
-
-# ── AGENT REGISTRY ────────────────────────────────────────────────
+# ── FIND ──────────────────────────────────────────────────────────
+AGENTS_OLD = """
 AGENTS = [
     {"name": "FX Agent",      "status_file": "status.json",           "stale_hours": 0.2,  "critical": True},
     {"name": "Job Agent",     "status_file": "job_agent_status.json", "stale_hours": 0.2,  "critical": False},
     {"name": "Shopify Agent", "status_file": "shopify_status.json",   "stale_hours": 24,   "critical": False},
 ]
+"""
 
-# ── FILE PATHS ────────────────────────────────────────────────────
-CORTEX_FILE    = "cortex_log.json"
-MEMORY_FILE    = "NUCLEUS_MEMORY.json"
-SHOPIFY_BUILD  = "shopify_build_log.json"
-CMD_FILE       = "nucleus_command.json"
-EMAIL_LOG_FILE = "nucleus_email_log.json"   # tracks processed email IDs
-TASK_LOG_FILE  = "nucleus_task_log.json"    # tracks task transitions
-MAX_CORTEX     = 100
-MAX_LESSONS    = 10
-CLAUDE_MODEL   = "claude-sonnet-4-20250514"
+# ── REPLACE WITH ──────────────────────────────────────────────────
+AGENTS_NEW = """
+AGENTS = [
+    {"name": "FX Agent",        "status_file": "status.json",                    "stale_hours": 0.2,  "critical": True},
+    {"name": "Job Agent",       "status_file": "job_agent_status.json",          "stale_hours": 0.2,  "critical": False},
+    {"name": "Shopify Agent",   "status_file": "shopify_agent_status.json",      "stale_hours": 24,   "critical": False},
+    {"name": "Lens Agent",      "status_file": "lens_agent_status.json",         "stale_hours": 0.5,  "critical": False},
+    {"name": "Email Sanitizer", "status_file": "email_sanitizer_status.json",    "stale_hours": 1.0,  "critical": False},
+]
+"""
 
-# ── LEAK SCANNER ──────────────────────────────────────────────────
-_LEAK_PATTERNS = ["sk-ant-", "shpat_", "app_password", "hhkps", "ghp_", "github_pat_"]
+# NOTE: shopify_status.json → shopify_agent_status.json (matches actual file in repo)
 
-def is_clean(text: str) -> bool:
-    for p in _LEAK_PATTERNS:
-        if p.lower() in text.lower():
-            print(f"[SECURITY] ⚠ LEAK BLOCKED — pattern '{p}' found")
-            return False
-    return True
 
-# ── HELPERS ───────────────────────────────────────────────────────
-def load_json(path: str, default):
-    try:
-        p = Path(path)
-        if p.exists():
-            return json.loads(p.read_text())
-    except Exception:
-        pass
-    return default
+# ════════════════════════════════════════════════════════════════════
+# PATCH 2 — build_system_context() (line ~290)
+# FIND the ctx string block and REPLACE
+# ════════════════════════════════════════════════════════════════════
 
-def save_json(path: str, data):
-    Path(path).write_text(json.dumps(data, indent=2, default=str))
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-def sast_now() -> str:
-    return datetime.now(timezone(timedelta(hours=2))).strftime("%Y-%m-%d %H:%M SAST")
-
-def hours_since(iso: str) -> float:
-    try:
-        t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-        return (datetime.now(timezone.utc) - t).total_seconds() / 3600
-    except Exception:
-        return 999
-
-def is_fx_session() -> bool:
-    now = datetime.now(timezone(timedelta(hours=2)))
-    return now.weekday() < 4 and 15 <= now.hour < 22
-
-def is_overnight() -> bool:
-    h = datetime.now(timezone(timedelta(hours=2))).hour
-    return 0 <= h < 6
-
-def days_until_end_of_march() -> int:
-    now  = datetime.now(timezone.utc)
-    end  = datetime(now.year, 3, 31, 22, 0, tzinfo=timezone.utc)
-    if now > end:
-        end = datetime(now.year + 1, 3, 31, 22, 0, tzinfo=timezone.utc)
-    return max(0, (end - now).days)
-
-# ── CLAUDE API ────────────────────────────────────────────────────
-async def call_claude(system: str, user: str, max_tokens: int = 800) -> str:
-    if not ANTHROPIC_API_KEY:
-        return "[No ANTHROPIC_API_KEY]"
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key":           ANTHROPIC_API_KEY,
-                    "anthropic-version":   "2023-06-01",
-                    "content-type":        "application/json",
-                },
-                json={
-                    "model":    CLAUDE_MODEL,
-                    "max_tokens": max_tokens,
-                    "system":   system,
-                    "messages": [{"role": "user", "content": user}],
-                }
-            )
-            return r.json()["content"][0]["text"]
-    except Exception as e:
-        return f"[Claude error: {e}]"
-
-# ── SEND EMAIL ────────────────────────────────────────────────────
-def send_email(to: str, subject: str, body: str):
-    """Send an email. Always runs through leak scanner before sending."""
-    if not all([GMAIL_FROM, GMAIL_APP_PASSWORD]):
-        print(f"[EMAIL] Gmail not configured — skipping: {subject}")
-        return False
-    if not is_clean(body):
-        print(f"[EMAIL] BLOCKED — leak detected in body")
-        return False
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"]    = f"Nucleus Supervisor <{GMAIL_FROM}>"
-        msg["To"]      = to
-        msg.attach(MIMEText(body, "plain"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
-            s.login(GMAIL_FROM, GMAIL_APP_PASSWORD)
-            s.send_message(msg)
-        print(f"[EMAIL] ✉ Sent to {to}: {subject}")
-        return True
-    except Exception as e:
-        print(f"[EMAIL] Failed: {e}")
-        return False
-
-def send_alert(subject: str, body: str):
-    """Send alert to the operator's primary address."""
-    send_email(GMAIL_TO, f"[Nucleus] {subject}", body)
-
-# ═══════════════════════════════════════════════════════════════════
-# ── EMAIL SCANNER ─────────────────────────────────────────────────
-# Scans inbox for emails with subject "Nucleus"
-# Responds with live system data
-# Private info only shared with TRUSTED_EMAILS
-# ═══════════════════════════════════════════════════════════════════
-
-def decode_str(s) -> str:
-    """Decode email header string (handles encoded UTF-8)."""
-    if not s:
-        return ""
-    parts = decode_header(s)
-    result = []
-    for part, enc in parts:
-        if isinstance(part, bytes):
-            result.append(part.decode(enc or "utf-8", errors="replace"))
-        else:
-            result.append(str(part))
-    return " ".join(result)
-
-def get_email_body(msg) -> str:
-    """Extract plain text body from email message."""
-    body = ""
-    if msg.is_multipart():
-        for part in msg.walk():
-            ct = part.get_content_type()
-            cd = str(part.get("Content-Disposition", ""))
-            if ct == "text/plain" and "attachment" not in cd:
-                try:
-                    body = part.get_payload(decode=True).decode("utf-8", errors="replace")
-                    break
-                except Exception:
-                    pass
-    else:
-        try:
-            body = msg.get_payload(decode=True).decode("utf-8", errors="replace")
-        except Exception:
-            pass
-    return body.strip()[:2000]  # Cap at 2000 chars for Claude
-
+# ── FIND ──────────────────────────────────────────────────────────
+CONTEXT_OLD = """
 def build_system_context(is_trusted: bool) -> str:
-    """Build live system context for Claude to answer from."""
+    \"\"\"Build live system context for Claude to answer from.\"\"\"
     fx     = load_json("status.json", {})
     jobs   = load_json("job_agent_status.json", {})
     build  = load_json(SHOPIFY_BUILD, {})
@@ -287,993 +64,47 @@ def build_system_context(is_trusted: bool) -> str:
     mem    = load_json(MEMORY_FILE, {})
 
     # Always-safe public info
-    ctx = f"""NUCLEUS SYSTEM STATUS — {sast_now()}
+    ctx = f\"\"\"NUCLEUS SYSTEM STATUS — {sast_now()}
 FX Agent: balance ZAR {fx.get('balance', '—')}, status {fx.get('status', '—')}, last seen {fx.get('last_seen_utc', '—')}
 FX Session: {'ACTIVE' if is_fx_session() else 'CLOSED'}
 Job Agent: {jobs.get('sent', 0)} sent today, {jobs.get('skipped', 0)} skipped
 Shopify Build: {build.get('percent_complete', 0)}% — {build.get('current_phase', '—')}
 March deadline: {days_until_end_of_march()} days remaining
-Latest cortex entry: {cortex[0].get('full', '—')[:300] if cortex else 'None'}"""
+Latest cortex entry: {cortex[0].get('full', '—')[:300] if cortex else 'None'}\"\"\"
+"""
 
-    if is_trusted:
-        # Add private info only for trusted addresses
-        prices = fx.get("last_prices", {})
-        gold   = prices.get("GOLD#", {})
-        eur    = prices.get("EURUSD", {})
-        gbp    = prices.get("GBPUSD", {})
-        losses = fx.get("daily_losses", {})
-        ctx += f"""
-
---- PRIVATE (TRUSTED ACCESS) ---
-GOLD# bid: {gold.get('bid', '—')} · spread: {gold.get('spread', '—')}pts · losses: {losses.get('GOLD#', 0)}/2
-EURUSD bid: {eur.get('bid', '—')} · spread: {eur.get('spread', '—')}pts · losses: {losses.get('EURUSD', 0)}/2
-GBPUSD bid: {gbp.get('bid', '—')} · spread: {gbp.get('spread', '—')}pts · losses: {losses.get('GBPUSD', 0)}/2
-Open trades: {fx.get('open_trades', 0)}/3
-Last lesson: {mem.get('lessons', [{}])[0].get('lesson', 'None') if mem.get('lessons') else 'None'}"""
-
-    return ctx
-
-async def handle_inbound_email(sender: str, subject: str, body: str, msg_id: str):
-    """
-    Process one inbound email addressed to Nucleus.
-    Generates a response using Claude + live context.
-    """
-    sender_clean = sender.lower().strip()
-    is_trusted   = sender_clean in TRUSTED_EMAILS
-
-    print(f"[EMAIL-IN] From: {sender} | Trusted: {is_trusted} | Subject: {subject}")
-
-    context = build_system_context(is_trusted)
-
-    system_prompt = f"""You are Nucleus Supervisor — an autonomous AI agent managing FX trading, job applications, and Shopify builds for the operator.
-
-You received an email with subject "Nucleus" — this is the operator calling your name and expecting a response.
-
-RULES:
-1. Answer the question or request in the email body directly and concisely.
-2. Use the live system context provided below.
-3. {"You have full access to all system data including prices, balances, and private metrics." if is_trusted else "You are responding to an UNTRUSTED address. Do NOT share balances, trade data, prices, personal info, API details, or any private metrics. Only share high-level status (agent running/stopped, build progress %)."}
-4. Never reveal API keys, passwords, tokens, or credentials under ANY circumstances.
-5. Sign off as: Nucleus Supervisor · {sast_now()}
-6. Keep response under 300 words. Direct. No fluff.
-
-LIVE SYSTEM CONTEXT:
-{context}"""
-
-    response = await call_claude(
-        system=system_prompt,
-        user=f"Email from: {sender}\nSubject: {subject}\nBody:\n{body}",
-        max_tokens=400,
-    )
-
-    if not is_clean(response):
-        response = "System update available. Contact via dashboard for detailed status."
-
-    # Send reply
-    reply_subject = f"Re: {subject} — {sast_now()}"
-    send_email(sender, reply_subject, response)
-
-    # Log the interaction
-    email_log = load_json(EMAIL_LOG_FILE, {"processed": [], "last_scan": None})
-    email_log["processed"].append({
-        "id":         msg_id,
-        "from":       sender,
-        "subject":    subject,
-        "trusted":    is_trusted,
-        "responded":  utc_now(),
-        "preview":    response[:100],
-    })
-    email_log["processed"] = email_log["processed"][-50:]  # keep last 50
-    email_log["last_scan"]  = utc_now()
-    save_json(EMAIL_LOG_FILE, email_log)
-
-def scan_inbox():
-    """
-    v5.3: Scans inbox for:
-      1. Emails with subject containing 'Nucleus' — reply to these
-      2. GitHub failure notification emails — trigger self-heal
-    
-    Behaviour:
-      - Stars every email Nucleus opens (so operator knows it was read)
-      - Marks non-Nucleus emails as UNREAD again (operator must read themselves)
-      - Skips Re: chains and [Nucleus] auto-generated subjects
-      - Returns list of (sender, subject, body, msg_id, email_type) tuples
-        where email_type is 'nucleus' or 'github_failure'
-    """
-    if not all([GMAIL_FROM, GMAIL_APP_PASSWORD]):
-        print("[EMAIL-SCAN] Gmail credentials not set — skipping inbox scan")
-        return []
-
-    results = []
-    processed_ids = set(
-        e["id"] for e in load_json(EMAIL_LOG_FILE, {"processed": []}).get("processed", [])
-    )
-
-    try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com", 993)
-        mail.login(GMAIL_FROM, GMAIL_APP_PASSWORD)
-        mail.select("INBOX")
-
-        # ── SEARCH 1: Nucleus emails ──────────────────────────────
-        _, data = mail.search(None, '(UNSEEN SUBJECT "Nucleus")')
-        nucleus_ids = data[0].split() if data[0] else []
-        print(f"[EMAIL-SCAN] Found {len(nucleus_ids)} unread 'Nucleus' email(s)")
-
-        for num in nucleus_ids[-10:]:
-            try:
-                uid_data = mail.fetch(num, "(UID)")[1][0].decode()
-                uid_match = re.search(r"UID (\d+)", uid_data)
-                uid = uid_match.group(1) if uid_match else num.decode()
-
-                if uid in processed_ids:
-                    continue
-
-                _, msg_data = mail.fetch(num, "(RFC822)")
-                raw  = msg_data[0][1]
-                msg  = email.message_from_bytes(raw)
-                sender  = decode_str(msg.get("From", ""))
-                subject = decode_str(msg.get("Subject", ""))
-                body    = get_email_body(msg)
-
-                email_match = re.search(r"<(.+?)>", sender)
-                sender_addr = email_match.group(1) if email_match else sender
-
-                # Skip our own emails
-                if sender_addr.lower() == GMAIL_FROM.lower():
-                    mail.store(num, "+FLAGS", "\\Seen")
-                    continue
-
-                subj_lower = subject.lower().strip()
-
-                # v5.2 fix: block ALL Re: and [Nucleus] subjects
-                if subj_lower.startswith("re:") or "[nucleus]" in subj_lower:
-                    mail.store(num, "+FLAGS", "\\Seen")
-                    continue
-
-                # ✅ Star the email — operator knows Nucleus read it
-                mail.store(num, "+FLAGS", "\\Flagged")
-                # Mark as read
-                mail.store(num, "+FLAGS", "\\Seen")
-
-                results.append((sender_addr, subject, body, uid, "nucleus"))
-
-            except Exception as e:
-                print(f"[EMAIL-SCAN] Error processing Nucleus email {num}: {e}")
-                continue
-
-        # ── SEARCH 2: GitHub failure notifications ────────────────
-        _, gh_data = mail.search(None, '(UNSEEN FROM "noreply@github.com")')
-        gh_ids = gh_data[0].split() if gh_data[0] else []
-
-        for num in gh_ids[-5:]:
-            try:
-                uid_data = mail.fetch(num, "(UID)")[1][0].decode()
-                uid_match = re.search(r"UID (\d+)", uid_data)
-                uid = uid_match.group(1) if uid_match else num.decode()
-
-                if uid in processed_ids:
-                    continue
-
-                _, msg_data = mail.fetch(num, "(RFC822)")
-                raw  = msg_data[0][1]
-                msg  = email.message_from_bytes(raw)
-                subject = decode_str(msg.get("Subject", ""))
-                body    = get_email_body(msg)
-
-                # Only care about run failures
-                subj_l = subject.lower()
-                if "run failed" in subj_l or "workflow failed" in subj_l or "failed" in subj_l:
-                    # ✅ Star it — Nucleus read it
-                    mail.store(num, "+FLAGS", "\\Flagged")
-                    mail.store(num, "+FLAGS", "\\Seen")
-                    results.append(("noreply@github.com", subject, body, uid, "github_failure"))
-                    print(f"[EMAIL-SCAN] GitHub failure email detected: {subject}")
-                else:
-                    # Not a failure — mark unread so operator sees it
-                    mail.store(num, "-FLAGS", "\\Seen")
-
-            except Exception as e:
-                print(f"[EMAIL-SCAN] Error processing GitHub email {num}: {e}")
-                continue
-
-        mail.logout()
-
-    except Exception as e:
-        print(f"[EMAIL-SCAN] IMAP connection failed: {e}")
-
-    return results
-
-# ═══════════════════════════════════════════════════════════════════
-# ── TASK QUEUE & TRANSITION NOTIFICATIONS ─────────────────────────
-# ═══════════════════════════════════════════════════════════════════
-
-def get_current_task() -> dict:
-    """Returns the first incomplete task in the queue."""
-    for task in TASK_QUEUE:
-        status = load_json(task["status_file"], {})
-        val    = status.get(task["complete_key"])
-        if val != task["complete_val"]:
-            return task
-    return None  # all done
-
-def is_task_complete(task: dict) -> bool:
-    """Check if a specific task is marked complete."""
-    status = load_json(task["status_file"], {})
-    return status.get(task["complete_key"]) == task["complete_val"]
-
-def estimate_task_eta(task: dict) -> str:
-    """
-    Estimate completion time based on task type and progress.
-    For Shopify: uses actual phase timing from build log.
-    For others: uses est_days from task config.
-    """
-    if task["id"] == "shopify_agent":
-        build = load_json(SHOPIFY_BUILD, {})
-        pct   = build.get("percent_complete", 0)
-        log   = build.get("build_log", [])
-        if len(log) >= 2:
-            # Calculate actual time per phase from real data
-            try:
-                t_start = datetime.fromisoformat(log[0]["timestamp"].replace("Z", "+00:00"))
-                t_last  = datetime.fromisoformat(log[-1]["timestamp"].replace("Z", "+00:00"))
-                phases_done = len(log)
-                mins_per_phase = (t_last - t_start).total_seconds() / 60 / max(phases_done - 1, 1)
-                phases_left = 12 - phases_done
-                mins_left   = phases_left * max(mins_per_phase, 5)
-                if mins_left < 60:
-                    return f"~{int(mins_left)} minutes ({phases_left} phases remaining)"
-                else:
-                    return f"~{mins_left/60:.1f} hours ({phases_left} phases remaining)"
-            except Exception:
-                pass
-        remaining_pct = 100 - pct
-        return f"~{int(remaining_pct * 5 / 100 * 12)} minutes (est.)"
-    else:
-        days = task["est_days"]
-        if days < 1:
-            return f"~{int(days * 24)} hours (estimated)"
-        return f"~{days} day{'s' if days != 1 else ''} (estimated)"
-
-def build_task_email(task: dict, reason: str = "starting") -> str:
-    """Build the task notification email body."""
-    eta   = estimate_task_eta(task)
-    prev  = None
-    for i, t in enumerate(TASK_QUEUE):
-        if t["id"] == task["id"] and i > 0:
-            prev = TASK_QUEUE[i-1]
-            break
-
-    lines = [
-        f"NUCLEUS SUPERVISOR — TASK TRANSITION",
-        f"{'='*50}",
-        f"",
-        f"STATUS: {reason.upper()}",
-        f"TASK:   {task['name']}",
-        f"ETA:    {eta}",
-        f"TIME:   {sast_now()}",
-        f"",
-        f"DESCRIPTION:",
-        f"{task['description']}",
-        f"",
-        f"MILESTONES:",
-    ]
-    for i, m in enumerate(task["milestones"], 1):
-        lines.append(f"  {i}. {m}")
-
-    if prev:
-        lines += [
-            f"",
-            f"PREVIOUS TASK COMPLETED: {prev['name']}",
-        ]
-
-    # Add next task preview
-    current_idx = next((i for i, t in enumerate(TASK_QUEUE) if t["id"] == task["id"]), -1)
-    if current_idx >= 0 and current_idx + 1 < len(TASK_QUEUE):
-        next_task = TASK_QUEUE[current_idx + 1]
-        lines += [
-            f"",
-            f"NEXT IN QUEUE: {next_task['name']} (~{next_task['est_days']}d)",
-        ]
-
-    # Current system snapshot
-    fx    = load_json("status.json", {})
-    build = load_json(SHOPIFY_BUILD, {})
-    lines += [
-        f"",
-        f"{'='*50}",
-        f"SYSTEM SNAPSHOT:",
-        f"  FX Balance: ZAR {fx.get('balance', '—')}",
-        f"  FX Session: {'ACTIVE' if is_fx_session() else 'CLOSED'}",
-        f"  Shopify Build: {build.get('percent_complete', 0)}%",
-        f"  March Deadline: {days_until_end_of_march()} days",
-        f"",
-        f"Reply to this email with subject 'Nucleus' to communicate with me.",
-        f"",
-        f"— Nucleus Supervisor v{VERSION}",
-        f"  {sast_now()}",
-    ]
-    return "\n".join(lines)
-
-async def check_task_transitions():
-    """
-    Check if the current task just completed.
-    If yes: send completion email + start notification for next task.
-    Uses nucleus_task_log.json to track which transitions already sent.
-    """
-    task_log = load_json(TASK_LOG_FILE, {"notified": []})
-    notified = set(task_log.get("notified", []))
-
-    for i, task in enumerate(TASK_QUEUE):
-        task_id = task["id"]
-
-        if is_task_complete(task) and f"{task_id}_complete" not in notified:
-            notified.add(f"{task_id}_complete")
-            print(f"[TASK] ✅ {task['name']} complete — logged (no email)")
-            if i + 1 < len(TASK_QUEUE):
-                next_task = TASK_QUEUE[i + 1]
-                if f"{next_task['id']}_start" not in notified:
-                    notified.add(f"{next_task['id']}_start")
-                    print(f"[TASK] 🚀 {next_task['name']} starting — logged (no email)")
-
-        elif not is_task_complete(task) and f"{task_id}_start" not in notified:
-            notified.add(f"{task_id}_start")
-            print(f"[TASK] 🚀 {task['name']} first run — logged (no email)")
-            break
-
-    task_log["notified"] = list(notified)
-    save_json(TASK_LOG_FILE, task_log)
-
-# ═══════════════════════════════════════════════════════════════════
-# ── EXISTING FUNCTIONS (unchanged) ────────────────────────────────
-# ═══════════════════════════════════════════════════════════════════
-
-async def call_claude_simple(system: str, user: str, max_tokens: int = 800) -> str:
-    return await call_claude(system, user, max_tokens)
-
-async def monitor_all_agents() -> list:
-    issues = []
-    for agent in AGENTS:
-        name  = agent["name"]
-        fpath = agent["status_file"]
-        stale = agent["stale_hours"]
-        status = load_json(fpath, {})
-        if not status:
-            continue
-        last_run = status.get("last_run") or status.get("last_seen_utc")
-        error    = status.get("error")
-        if last_run and hours_since(last_run) > stale and is_fx_session():
-            issues.append(f"{name}: stale {hours_since(last_run):.1f}h")
-            if agent["critical"]:
-                print(f"[MONITOR] ⚠ {name} stale — visible in dashboard, no email spam")
-        if error:
-            issues.append(f"{name}: {error}")
-            print(f"[MONITOR] ⚠ {name}: {error}")
-        else:
-            print(f"[MONITOR] ✓ {name}: ok")
-    return issues
-
-async def build_shopify_agent():
-    build = load_json(SHOPIFY_BUILD, {
-        "started_at": utc_now(), "percent_complete": 0,
-        "current_phase": "Not started", "current_phase_id": 0,
-        "build_log": [], "shopify_agent_code": {},
-    })
-    completed_id = build.get("current_phase_id", 0)
-    next_phase = next((p for p in SHOPIFY_PHASES if p["id"] > completed_id), None)
-    if not next_phase:
-        print("[SHOPIFY] ✅ All phases complete!")
-        build["percent_complete"] = 100
-        build["current_phase"]    = "COMPLETE"
-        build["completed_at"]     = utc_now()
-        save_json(SHOPIFY_BUILD, build)
-        return
-    print(f"[SHOPIFY] Building phase {next_phase['id']}: {next_phase['name']}")
-    code = await call_claude(
-        system=f"""You are building a Shopify Agent for the operator.
-The agent manages a Shopify store autonomously.
-Write production-quality Python. Use environment variables for all secrets.
-No hardcoded credentials. Output ONLY the Python code. No markdown fences.""",
-        user=f"""Phase {next_phase['id']} of 12: {next_phase['name']}
-Previously completed: {[p['name'] for p in SHOPIFY_PHASES if p['id'] < next_phase['id']]}
-Write the Python module for: {next_phase['name']}
-Standalone function or class. Include docstring, error handling.""",
-        max_tokens=1200,
-    )
-    if not is_clean(code):
-        print(f"[SHOPIFY] Phase {next_phase['id']} blocked by leak scanner")
-        return
-    build["current_phase_id"]  = next_phase["id"]
-    build["current_phase"]     = next_phase["name"]
-    build["percent_complete"]  = next_phase["pct"]
-    build["last_updated"]      = utc_now()
-    build["shopify_agent_code"][f"phase_{next_phase['id']}"] = code
-    log_entry = {
-        "phase_id": next_phase["id"], "phase_name": next_phase["name"],
-        "timestamp": utc_now(), "pct": next_phase["pct"],
-        "note": f"Phase {next_phase['id']} ({next_phase['name']}) generated — {len(code)} chars",
-    }
-    build["build_log"].append(log_entry)
-    save_json(SHOPIFY_BUILD, build)
-    print(f"[SHOPIFY] ✅ Phase {next_phase['id']} done — {next_phase['pct']}%")
-    if next_phase["pct"] == 100:
-        send_alert(
-            f"Shopify Agent 100% Built ✅",
-            f"All 12 phases complete.\n{log_entry['note']}\n— Supervisor v{VERSION}"
-        )
-
-async def write_cortex():
-    fx    = load_json("status.json",          {})
-    jobs  = load_json("job_agent_status.json",{})
-    build = load_json(SHOPIFY_BUILD,          {})
-    balance   = float(fx.get("balance", 0))
-    prices    = fx.get("last_prices", {})
-    gold_bid  = prices.get("GOLD#",  {}).get("bid", "—")
-    eur_bid   = prices.get("EURUSD", {}).get("bid", "—")
-    gbp_bid   = prices.get("GBPUSD", {}).get("bid", "—")
-    shop_pct  = build.get("percent_complete", 0)
-    shop_phase = build.get("current_phase", "—")
-    days_left = days_until_end_of_march()
-    now   = datetime.now(timezone(timedelta(hours=2)))
-    run_n = os.environ.get("GITHUB_RUN_NUMBER", "0")
-    lines = [
-        f"Nucleus v{VERSION} — {now.strftime('%Y-%m-%d %H:%M SAST')} | Run #{run_n}",
-        f"FX: ZAR {balance:.2f} | {'IN SESSION' if is_fx_session() else 'OFFLINE'}",
-        f"GOLD# bid {gold_bid} | EURUSD {eur_bid} | GBPUSD {gbp_bid}",
-        f"Jobs: {jobs.get('sent', 0)} sent · {jobs.get('skipped', 0)} skipped",
-        f"Shopify: {shop_pct}% — {shop_phase}",
-        f"Deadline: {days_left}d remaining",
-    ]
-    entry = {
-        "run":         int(run_n) if run_n.isdigit() else 0,
-        "sast":        now.strftime("%Y-%m-%d %H:%M SAST"),
-        "timestamp":   utc_now(),
-        "status":      "completed",
-        "balance_zar": round(balance, 2),
-        "in_session":  is_fx_session(),
-        "shopify_pct": shop_pct,
-        "shopify_phase": shop_phase,
-        "days_to_deadline": days_left,
-        "full":        "\n".join(lines),
-    }
-    log_data = load_json(CORTEX_FILE, [])
-    if not isinstance(log_data, list):
-        log_data = []
-    log_data.insert(0, entry)
-    save_json(CORTEX_FILE, log_data[:MAX_CORTEX])
-    print(f"[CORTEX] Written — {entry['sast']}")
-
-async def handle_war_room_command(cmd: dict):
-    raw = cmd.get("raw", "")
-    if not raw:
-        return
-    status_keywords = ["busy", "doing", "status", "update", "how far", "progress",
-                       "what are you", "what's everyone", "whats everyone", "report"]
-    if any(k in raw for k in status_keywords):
-        await generate_status_report()
-        return
-    if "shopify" in raw and any(k in raw for k in ["how far", "progress", "status", "update"]):
-        await generate_shopify_report()
-        return
-    response = await call_claude(
-        system=f"""You are Nucleus Supervisor. You received a command from the dashboard.
-Respond in 2-3 sentences. Direct, honest. No fluff.""",
-        user=f"Command: {raw}\n\nTime: {sast_now()}\nFX session: {is_fx_session()}\nDays until deadline: {days_until_end_of_march()}",
-        max_tokens=200,
-    )
-    if is_clean(response):
-        data = load_json(CMD_FILE, {})
-        data["supervisor_response"] = response
-        data["response_at"]         = utc_now()
-        data["status"]              = "responded"
-        save_json(CMD_FILE, data)
-        print(f"[COMMAND] Responded: {response[:80]}...")
-
-async def generate_status_report():
-    fx    = load_json("status.json", {})
-    jobs  = load_json("job_agent_status.json", {})
-    build = load_json(SHOPIFY_BUILD, {})
-    fx_summary   = f"ZAR {fx.get('balance', 0):.2f}. GOLD# {fx.get('last_prices', {}).get('GOLD#', {}).get('bid', '—')}. {'IN SESSION' if is_fx_session() else 'OFFLINE'}."
-    jobs_summary = f"{jobs.get('sent', 0)} sent, {jobs.get('skipped', 0)} skipped."
-    shop_summary = f"Build {build.get('percent_complete', 0)}% — {build.get('current_phase', '—')}."
-    report = await call_claude(
-        system="You are Nucleus Supervisor. Generate a 4-sentence status report. One per agent. Direct.",
-        user=f"FX: {fx_summary}\nJobs: {jobs_summary}\nShopify: {shop_summary}\nDays left: {days_until_end_of_march()}",
-        max_tokens=250,
-    )
-    if is_clean(report):
-        data = load_json(CMD_FILE, {})
-        data["supervisor_response"] = report
-        data["response_at"]         = utc_now()
-        data["status"]              = "responded"
-        save_json(CMD_FILE, data)
-
-async def generate_shopify_report():
-    build = load_json(SHOPIFY_BUILD, {})
-    pct   = build.get("percent_complete", 0)
-    phase = build.get("current_phase", "Not started")
-    log_data = build.get("build_log", [])
-    last  = log_data[-1]["note"] if log_data else "No entries yet"
-    data  = load_json(CMD_FILE, {})
-    data["supervisor_response"] = f"Shopify Agent: {pct}% complete. Current phase: {phase}. Latest: {last}"
-    data["response_at"]         = utc_now()
-    data["status"]              = "responded"
-    save_json(CMD_FILE, data)
-
-def read_command() -> dict:
-    try:
-        if not Path(CMD_FILE).exists():
-            return {}
-        data = load_json(CMD_FILE, {})
-        if data.get("status") == "executed":
-            return {}
-        cmd = (data.get("command") or "").lower().strip()
-        if not cmd:
-            return {}
-        print(f"[COMMAND] Dashboard: '{cmd}'")
-        return {"raw": cmd, "issued_at": data.get("issued_at", "")}
-    except Exception as e:
-        print(f"[COMMAND] Read error: {e}")
-        return {}
-
-def clear_command():
-    try:
-        data = load_json(CMD_FILE, {})
-        data["status"]    = "executed"
-        data["executed_at"] = utc_now()
-        save_json(CMD_FILE, data)
-    except Exception:
-        pass
-
-async def learn_overnight():
-    if not is_overnight():
-        return
+# ── REPLACE WITH ──────────────────────────────────────────────────
+CONTEXT_NEW = """
+def build_system_context(is_trusted: bool) -> str:
+    \"\"\"Build live system context for Claude to answer from.\"\"\"
+    fx     = load_json("status.json", {})
+    jobs   = load_json("job_agent_status.json", {})
+    build  = load_json(SHOPIFY_BUILD, {})
     cortex = load_json(CORTEX_FILE, [])
-    if len(cortex) < 3:
-        return
-    memory = load_json(MEMORY_FILE, {"lessons": [], "last_lesson_utc": None, "evolution_log": []})
-    last = memory.get("last_lesson_utc")
-    if last and hours_since(last) < 0.9:
-        return
-    if not ANTHROPIC_API_KEY:
-        return
-    recent = "\n---\n".join(e.get("full", "") for e in cortex[:8])
-    lesson = await call_claude(
-        system=f"Extract ONE specific actionable lesson from these agent logs. 1 sentence. No generic advice.",
-        user=f"Logs:\n{recent}\n\nSingle most important lesson?",
-        max_tokens=120,
-    )
-    if not is_clean(lesson):
-        return
-    lessons = memory.get("lessons", [])
-    lessons.insert(0, {"timestamp": utc_now(), "lesson": lesson})
-    memory["lessons"]         = lessons[:MAX_LESSONS]
-    memory["last_lesson_utc"] = utc_now()
-    evo = memory.get("evolution_log", [])
-    evo.insert(0, {"timestamp": utc_now(), "event": f"Lesson by Supervisor v{VERSION}"})
-    memory["evolution_log"] = evo[:20]
-    save_json(MEMORY_FILE, memory)
-    print(f"[MEMORY] Lesson: {lesson[:80]}...")
-    send_alert("Overnight Lesson", f"{lesson}\n\n{days_until_end_of_march()} days to March deadline.\n— Supervisor v{VERSION}")
+    mem    = load_json(MEMORY_FILE, {})
+    lens   = load_json("lens_agent_status.json", {})
+    email_san = load_json("email_sanitizer_status.json", {})
 
-# ═══════════════════════════════════════════════════════════════════
-# ── SELF-HEALING ENGINE v5.1 ───────────────────────────────────────
-# Reads workflow logs → detects errors → fixes code → redeploys
-# ═══════════════════════════════════════════════════════════════════
+    # Always-safe public info
+    ctx = f\"\"\"NUCLEUS SYSTEM STATUS — {sast_now()}
+FX Agent: balance ZAR {fx.get('balance', '—')}, status {fx.get('status', '—')}, last seen {fx.get('last_seen_utc', '—')}
+FX Session: {'ACTIVE' if is_fx_session() else 'CLOSED'}
+Job Agent: {jobs.get('sent', 0)} sent today, {jobs.get('skipped', 0)} skipped
+Shopify Build: {build.get('percent_complete', 0)}% — {build.get('current_phase', '—')}
+Lens Agent: {lens.get('last_run', '—')} | {lens.get('processed', 0)} videos processed | queue: {lens.get('queue_size', 0)}
+Email Sanitizer: {email_san.get('last_run', '—')} | trashed: {email_san.get('trashed_total', 0)}
+March deadline: {days_until_end_of_march()} days remaining
+Latest cortex entry: {cortex[0].get('full', '—')[:300] if cortex else 'None'}\"\"\"
+"""
 
-GH_API = "https://api.github.com"
 
-def gh_headers() -> dict:
-    return {
-        "Authorization": f"token {GH_PAT}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
+# ════════════════════════════════════════════════════════════════════
+# PATCH 3 — write_todo() always_on block (line ~1278)
+# FIND and REPLACE
+# ════════════════════════════════════════════════════════════════════
 
-async def gh_get(path: str) -> dict:
-    """GET from GitHub API."""
-    async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.get(f"{GH_API}{path}", headers=gh_headers())
-        r.raise_for_status()
-        return r.json()
-
-async def gh_put(path: str, body: dict) -> dict:
-    """PUT to GitHub API (create/update file)."""
-    async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.put(f"{GH_API}{path}", headers=gh_headers(), json=body)
-        r.raise_for_status()
-        return r.json()
-
-async def gh_post(path: str, body: dict) -> dict:
-    """POST to GitHub API (trigger workflow etc)."""
-    async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.post(f"{GH_API}{path}", headers=gh_headers(), json=body)
-        return r.json()
-
-async def get_last_workflow_run() -> dict:
-    """Get the most recent completed workflow run."""
-    try:
-        data = await gh_get(f"/repos/{GH_REPO}/actions/runs?per_page=5&status=completed")
-        runs = data.get("workflow_runs", [])
-        if runs:
-            return runs[0]
-    except Exception as e:
-        print(f"[HEAL] Failed to get workflow runs: {e}")
-    return {}
-
-async def get_run_logs(run_id: int) -> str:
-    """
-    Get the text logs for a specific workflow run.
-    Returns combined log text from all jobs.
-    """
-    try:
-        jobs_data = await gh_get(f"/repos/{GH_REPO}/actions/runs/{run_id}/jobs")
-        jobs = jobs_data.get("jobs", [])
-        all_logs = []
-        for job in jobs:
-            job_name = job.get("name", "")
-            steps = job.get("steps", [])
-            job_log = f"\n=== JOB: {job_name} ===\n"
-            for step in steps:
-                name = step.get("name", "")
-                conclusion = step.get("conclusion", "")
-                job_log += f"  STEP: {name} [{conclusion}]\n"
-            # Get actual log text
-            try:
-                log_url = f"/repos/{GH_REPO}/actions/jobs/{job['id']}/logs"
-                async with httpx.AsyncClient(timeout=30) as client:
-                    r = await client.get(
-                        f"{GH_API}{log_url}",
-                        headers=gh_headers(),
-                        follow_redirects=True
-                    )
-                    if r.status_code == 200:
-                        # Truncate to last 8000 chars — errors are usually at the end
-                        log_text = r.text[-8000:] if len(r.text) > 8000 else r.text
-                        job_log += log_text
-            except Exception:
-                pass
-            all_logs.append(job_log)
-        return "\n".join(all_logs)
-    except Exception as e:
-        print(f"[HEAL] Failed to get logs for run {run_id}: {e}")
-        return ""
-
-def extract_errors_from_log(log_text: str) -> list:
-    """
-    Parse workflow log text and extract meaningful errors.
-    Returns list of error dicts with: job, error_type, message, file_hint
-    """
-    errors = []
-    if not log_text:
-        return errors
-
-    # Patterns that indicate real problems
-    error_patterns = [
-        # Python exceptions
-        (r"(Traceback \(most recent call last\).*?)(?=\n\n|\Z)", "python_exception"),
-        (r"(\w+Error: .+)", "python_error"),
-        (r"(SyntaxError: .+)", "syntax_error"),
-        (r"(ImportError: .+)", "import_error"),
-        (r"(ModuleNotFoundError: .+)", "import_error"),
-        # GitHub Actions failures
-        (r"(Error: Process completed with exit code \d+)", "exit_code"),
-        # Agent-specific errors
-        (r"(\[ERROR\] .+)", "agent_error"),
-        (r"(\[FATAL\] .+)", "agent_fatal"),
-    ]
-
-    # Which file to look at based on job section
-    current_job = "unknown"
-    for line in log_text.split('\n'):
-        if "=== JOB:" in line:
-            if "Job Agent" in line:
-                current_job = "kidbuu_job_agent.py"
-            elif "FX Agent" in line:
-                current_job = "fx_agent_bot.py"
-            elif "Supervisor" in line:
-                current_job = "nucleus_supervisor.py"
-
-    for pattern, error_type in error_patterns:
-        matches = re.findall(pattern, log_text, re.DOTALL | re.MULTILINE)
-        for m in matches[:3]:  # max 3 of each type
-            msg = m.strip()[:500]
-            if len(msg) > 20:  # ignore very short matches
-                errors.append({
-                    "type":      error_type,
-                    "message":   msg,
-                    "file_hint": current_job,
-                })
-
-    return errors
-
-async def get_file_from_github(filepath: str) -> tuple:
-    """
-    Get file content and SHA from GitHub.
-    Returns (content_string, sha) or (None, None) on failure.
-    """
-    try:
-        data = await gh_get(f"/repos/{GH_REPO}/contents/{filepath}")
-        import base64
-        content = base64.b64decode(data["content"]).decode("utf-8")
-        return content, data["sha"]
-    except Exception as e:
-        print(f"[HEAL] Failed to get {filepath} from GitHub: {e}")
-        return None, None
-
-async def commit_file_to_github(filepath: str, content: str, sha: str, message: str) -> bool:
-    """
-    Commit a file to GitHub via API.
-    sha is required to update existing files.
-    Returns True on success.
-    """
-    try:
-        import base64
-        encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-        body = {
-            "message": message,
-            "content": encoded,
-            "sha":     sha,
-        }
-        await gh_put(f"/repos/{GH_REPO}/contents/{filepath}", body)
-        print(f"[HEAL] ✅ Committed {filepath}: {message}")
-        return True
-    except Exception as e:
-        print(f"[HEAL] Failed to commit {filepath}: {e}")
-        return False
-
-async def trigger_workflow() -> bool:
-    """Trigger the GitHub Actions workflow via API."""
-    try:
-        await gh_post(
-            f"/repos/{GH_REPO}/actions/workflows/{GH_WORKFLOW_ID}/dispatches",
-            {"ref": "main"}
-        )
-        print("[HEAL] ✅ Workflow triggered")
-        return True
-    except Exception as e:
-        print(f"[HEAL] Failed to trigger workflow: {e}")
-        return False
-
-async def generate_fix(file_content: str, errors: list, filename: str) -> str:
-    """
-    Ask Claude to fix the file based on the errors found.
-    Returns the fixed file content.
-    """
-    error_summary = "\n".join([
-        f"- [{e['type']}] {e['message'][:200]}"
-        for e in errors[:5]
-    ])
-
-    fixed = await call_claude(
-        system=f"""You are Nucleus Supervisor fixing a broken Python file.
-The file is {filename} running on GitHub Actions.
-You must return ONLY the complete fixed Python file content.
-No markdown, no explanation, no backticks. Just the raw Python code.
-Fix only what is broken. Do not change working logic.
-Keep all existing functionality intact.
-Ensure the file will run successfully on Ubuntu 24 with Python 3.11.""",
-        user=f"""FILE: {filename}
-ERRORS FROM LAST RUN:
-{error_summary}
-
-CURRENT FILE CONTENT:
-{file_content[:6000]}
-
-Return the complete fixed Python file. Raw code only.""",
-        max_tokens=4000,
-    )
-
-    # Strip any accidental markdown fences
-    fixed = re.sub(r'^```python\s*|^```\s*|```$', '', fixed.strip(), flags=re.MULTILINE)
-    return fixed.strip()
-
-def load_heal_log() -> dict:
-    return load_json(HEAL_LOG_FILE, {"attempts": {}, "last_fix": None, "total_fixes": 0})
-
-def save_heal_log(data: dict):
-    save_json(HEAL_LOG_FILE, data)
-
-def should_attempt_fix(filename: str, error_sig: str, heal_log: dict) -> bool:
-    """
-    Returns True if we should attempt a fix.
-    Prevents infinite loops by tracking attempts per error signature.
-    """
-    key = f"{filename}::{error_sig[:50]}"
-    attempts = heal_log.get("attempts", {})
-    entry = attempts.get(key, {"count": 0, "last_attempt": None})
-
-    if entry["count"] >= MAX_FIX_ATTEMPTS:
-        print(f"[HEAL] Max fix attempts ({MAX_FIX_ATTEMPTS}) reached for {filename} — skipping")
-        return False
-
-    if entry["last_attempt"]:
-        mins_ago = hours_since(entry["last_attempt"]) * 60
-        if mins_ago < HEAL_COOLDOWN_MIN:
-            print(f"[HEAL] Cooldown active for {filename} — {HEAL_COOLDOWN_MIN - int(mins_ago)}min remaining")
-            return False
-
-    return True
-
-def record_fix_attempt(filename: str, error_sig: str, heal_log: dict):
-    key = f"{filename}::{error_sig[:50]}"
-    attempts = heal_log.setdefault("attempts", {})
-    entry = attempts.get(key, {"count": 0, "last_attempt": None})
-    entry["count"] += 1
-    entry["last_attempt"] = utc_now()
-    attempts[key] = entry
-    heal_log["attempts"] = attempts
-    heal_log["last_fix"] = utc_now()
-    heal_log["total_fixes"] = heal_log.get("total_fixes", 0) + 1
-
-async def self_healing_cycle():
-    """
-    Main self-healing cycle. Runs every Supervisor loop.
-    1. Read last workflow run
-    2. If failed → extract errors
-    3. Get the broken file → generate fix → commit → trigger workflow
-    4. Email Nic what happened
-    """
-    if not GH_PAT:
-        print("[HEAL] GH_PAT not set — self-healing disabled")
-        return
-
-    print("[HEAL] Checking last workflow run...")
-
-    last_run = await get_last_workflow_run()
-    if not last_run:
-        print("[HEAL] No completed runs found")
-        return
-
-    conclusion = last_run.get("conclusion", "")
-    run_id     = last_run.get("id")
-    run_num    = last_run.get("run_number", "?")
-
-    if conclusion == "success":
-        print(f"[HEAL] Run #{run_num} was successful — nothing to fix")
-        return
-
-    if conclusion not in ["failure", "timed_out"]:
-        print(f"[HEAL] Run #{run_num} conclusion: {conclusion} — not a fixable failure")
-        return
-
-    print(f"[HEAL] ⚠ Run #{run_num} FAILED — reading logs...")
-
-    log_text = await get_run_logs(run_id)
-    if not log_text:
-        print("[HEAL] Could not read logs — skipping")
-        return
-
-    errors = extract_errors_from_log(log_text)
-    if not errors:
-        print(f"[HEAL] Run #{run_num} failed but no parseable errors found")
-        return
-
-    print(f"[HEAL] Found {len(errors)} error(s)")
-
-    # Determine which file to fix
-    file_to_fix = errors[0].get("file_hint", "kidbuu_job_agent.py")
-    # Override with more specific detection
-    for e in errors:
-        if "kidbuu_job_agent" in e["message"] or "job_agent" in e["message"].lower():
-            file_to_fix = "kidbuu_job_agent.py"
-            break
-        if "fx_agent_bot" in e["message"] or "fx_agent" in e["message"].lower():
-            file_to_fix = "fx_agent_bot.py"
-            break
-        if "nucleus_supervisor" in e["message"]:
-            file_to_fix = "nucleus_supervisor.py"
-            break
-
-    error_sig = errors[0]["message"][:50]
-    heal_log  = load_heal_log()
-
-    if not should_attempt_fix(file_to_fix, error_sig, heal_log):
-        return
-
-    print(f"[HEAL] 🔧 Attempting fix for {file_to_fix}...")
-
-    # Get current file content
-    file_content, file_sha = await get_file_from_github(file_to_fix)
-    if not file_content:
-        print(f"[HEAL] Could not retrieve {file_to_fix} from GitHub")
-        return
-
-    # Generate fix via Claude
-    fixed_content = await generate_fix(file_content, errors, file_to_fix)
-
-    if not fixed_content or len(fixed_content) < 100:
-        print("[HEAL] Fix generation failed or too short — skipping")
-        return
-
-    if not is_clean(fixed_content):
-        print("[HEAL] Fix contains leaked credentials — blocked")
-        return
-
-    # Commit the fix
-    error_preview = errors[0]["message"][:60].replace('\n', ' ')
-    commit_msg = f"heal: auto-fix {file_to_fix} — {error_preview}"
-    committed = await commit_file_to_github(file_to_fix, fixed_content, file_sha, commit_msg)
-
-    if not committed:
-        return
-
-    # Record the attempt
-    record_fix_attempt(file_to_fix, error_sig, heal_log)
-    save_heal_log(heal_log)
-
-    # Wait 10s for GitHub to process the commit, then trigger workflow
-    await asyncio.sleep(10)
-    triggered = await trigger_workflow()
-
-    # Email Nic a full report
-    error_list = "\n".join([f"  • [{e['type']}] {e['message'][:120]}" for e in errors[:3]])
-    status_line = "✅ Workflow re-triggered" if triggered else "⚠ Workflow trigger failed — check GitHub"
-    report = f"""NUCLEUS SELF-HEALING REPORT
-{'='*50}
-TIME:     {sast_now()}
-RUN:      #{run_num} (ID: {run_id})
-OUTCOME:  {conclusion.upper()}
-FILE:     {file_to_fix}
-ATTEMPTS: {heal_log['attempts'].get(f'{file_to_fix}::{error_sig[:50]}', {}).get('count', 1)}/{MAX_FIX_ATTEMPTS}
-
-ERRORS DETECTED:
-{error_list}
-
-FIX GENERATED BY CLAUDE: Yes ({len(fixed_content)} chars)
-COMMITTED TO GITHUB: {'Yes' if committed else 'No'}
-{status_line}
-
-Total auto-fixes to date: {heal_log.get('total_fixes', 1)}
-— Nucleus Supervisor v{VERSION}"""
-
-    send_alert(f"🔧 Auto-fixed {file_to_fix} — Run #{run_num}", report)
-    print(f"[HEAL] ✅ Fix complete — {file_to_fix} updated, workflow triggered, email sent")
-
-# ═══════════════════════════════════════════════════════════════════
-# ── MAIN ──────────────────────────────────────────────────────────
-# ═══════════════════════════════════════════════════════════════════
-async def write_todo():
-    """
-    Writes nucleus_todo.json every run.
-    Dashboard reads this for live to-do list.
-    """
-    build   = load_json(SHOPIFY_BUILD, {})
-    tasks   = load_json(TASK_LOG_FILE, {"notified": []})
-    notified = set(tasks.get("notified", []))
-
-    todo = {
-        "updated":    sast_now(),
-        "updated_utc": utc_now(),
-        "active":     [],
-        "queued":     [],
-        "done":       [],
-    }
-
-    for task in TASK_QUEUE:
-        status_data = load_json(task["status_file"], {})
-        is_done = status_data.get(task["complete_key"]) == task["complete_val"]
-
-        if task["id"] == "shopify_agent":
-            pct = build.get("percent_complete", 0)
-            phase = build.get("current_phase", "—")
-            detail = f"{pct}% — {phase}"
-        else:
-            detail = "queued"
-
-        entry = {
-            "id":     task["id"],
-            "name":   task["name"],
-            "detail": detail,
-            "est":    task.get("est_days", "—"),
-        }
-
-        if is_done:
-            todo["done"].append(entry)
-        elif f"{task['id']}_start" in notified:
-            todo["active"].append(entry)
-        else:
-            todo["queued"].append(entry)
-
+# ── FIND ──────────────────────────────────────────────────────────
+TODO_OLD = """
     # Always-on agents
     todo["always_on"] = [
         {"name": "FX Agent",       "schedule": "every 5min session hours"},
@@ -1281,73 +112,28 @@ async def write_todo():
         {"name": "Email Sanitizer","schedule": "every 30min always"},
         {"name": "Supervisor",     "schedule": "every 5min always"},
     ]
+"""
 
-    save_json(TODO_FILE, todo)
-    print(f"[TODO] Written — {len(todo['active'])} active, {len(todo['queued'])} queued")
-
-
-async def create_private_repo():
-    """
-    Creates a private GitHub repo 'nucleus-private' for operator's personal projects.
-    Only runs once — checks if repo already exists first.
-    """
-    if not GH_PAT:
-        return
-    try:
-        # Check if already exists
-        check = await gh_get(f"/repos/{GH_REPO.split('/')[0]}/nucleus-private")
-        if check.get("id"):
-            print("[REPO] nucleus-private already exists")
-            return
-    except Exception:
-        pass  # doesn't exist — create it
-
-    try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            r = await client.post(
-                f"{GH_API}/user/repos",
-                headers=gh_headers(),
-                json={
-                    "name":        "nucleus-private",
-                    "description": "Nucleus private workspace — personal projects, dashboards, configs",
-                    "private":     True,
-                    "auto_init":   True,
-                }
-            )
-            if r.status_code in (200, 201):
-                print("[REPO] ✅ nucleus-private created")
-                send_alert(
-                    "Private repo created ✅",
-                    f"nucleus-private is live at github.com/{GH_REPO.split('/')[0]}/nucleus-private\n"
-                    f"Your personal projects will be dropped here.\n— Nucleus v{VERSION}"
-                )
-            else:
-                print(f"[REPO] Failed: {r.status_code}")
-    except Exception as e:
-        print(f"[REPO] Error: {e}")
-
-
-
-# ═══════════════════════════════════════════════════════════════════
-# ── EOD SUMMARY ────────────────────────────────────────────────────
-# ═══════════════════════════════════════════════════════════════════
-async def send_eod_summary():
-    """Sends end-of-day summary at 22:00 SAST. Every agent, every email trashed."""
-    sast = datetime.now(timezone(timedelta(hours=2)))
-    if sast.hour != 22:
-        return
-    eod_key = f"eod_sent_{sast.strftime('%Y-%m-%d')}"
-    memory = load_json(MEMORY_FILE, {})
-    if memory.get(eod_key):
-        return
-
-    print("[EOD] Building end-of-day summary...")
-    lines = [
-        f"NUCLEUS END OF DAY REPORT — {sast.strftime('%A %d %B %Y')}",
-        "=" * 54, "",
-        "AGENT DAILY REPORT", "-" * 30,
+# ── REPLACE WITH ──────────────────────────────────────────────────
+TODO_NEW = """
+    # Always-on agents
+    todo["always_on"] = [
+        {"name": "FX Agent",        "schedule": "every 5min Mon-Thu session"},
+        {"name": "Job Agent",       "schedule": "every 5min always"},
+        {"name": "Email Sanitizer", "schedule": "every 30min always"},
+        {"name": "Lens Agent",      "schedule": "every 15min always"},
+        {"name": "Supervisor",      "schedule": "every 5min always"},
     ]
+"""
 
+
+# ════════════════════════════════════════════════════════════════════
+# PATCH 4 — send_eod_summary() agent lines (line ~1370 area)
+# FIND and REPLACE the agent summary lines block
+# ════════════════════════════════════════════════════════════════════
+
+# ── FIND ──────────────────────────────────────────────────────────
+EOD_OLD = """
     fx   = load_json("status.json", {})
     job  = load_json("job_agent_status.json", {})
     shop = load_json("shopify_agent_status.json", {})
@@ -1366,116 +152,126 @@ async def send_eod_summary():
     lines.append(f"SUPERVISOR:     {run_count} runs today | Self-healing active")
     if today_upgrades:
         lines.append(f"TESTING ROOM:   {len(today_upgrades)} agent(s) upgraded tonight")
+"""
 
-    lines += ["", "EMAILS TRASHED TODAY", "-" * 30]
-    if trashed_today:
-        for addr in trashed_today[:50]:
-            lines.append(f"  trash  {addr}")
-        if len(trashed_today) > 50:
-            lines.append(f"  ... and {len(trashed_today)-50} more")
-        lines.append("\n  All in Gmail Trash — auto-purges in 30 days. Recoverable until then.")
-    else:
-        lines.append("  None trashed today.")
+# ── REPLACE WITH ──────────────────────────────────────────────────
+EOD_NEW = """
+    fx   = load_json("status.json", {})
+    job  = load_json("job_agent_status.json", {})
+    shop = load_json("shopify_agent_status.json", {})
+    lens = load_json("lens_agent_status.json", {})
+    purge = load_json("email_purge_log.json", {"trashed_today": []})
+    cortex = load_json(CORTEX_FILE, [])
+    room_log = load_json("nucleus_testing_room_log.json", {"sessions": []})
 
-    lines += ["", f"MARCH DEADLINE: {days_until_end_of_march()} days remaining",
-              f"COST ~$4.14/mo | R76.59/mo", f"\n— Nucleus v{VERSION} · {sast_now()}"]
+    run_count = len([e for e in cortex if (e.get("sast") or "").startswith(sast.strftime("%Y-%m-%d"))])
+    trashed_today = purge.get("trashed_today", [])
+    today_upgrades = [s for s in room_log.get("sessions", []) if (s.get("timestamp") or "").startswith(sast.strftime("%Y-%m-%d"))]
+    lens_processed_today = lens.get("processed_today", lens.get("processed", 0))
 
-    body = "\n".join(lines)
-    if is_clean(body):
-        send_alert("📊 End of Day Report", body)
-        memory[eod_key] = True
-        save_json(MEMORY_FILE, memory)
-        print("[EOD] ✅ Summary sent")
+    lines.append(f"FX AGENT:       ZAR {fx.get('balance_zar','—')} | {fx.get('trades_today',0)} trades | {'Active' if fx.get('in_session') else 'Market closed'}")
+    lines.append(f"JOB AGENT:      {job.get('emails_sent_today', job.get('total_sent',0))} sent | {job.get('skipped_today',0)} skipped")
+    lines.append(f"SHOPIFY AGENT:  {'Connected' if shop.get('store_connected') else 'Awaiting credentials'} | {shop.get('last_action','Monitoring')}")
+    lines.append(f"EMAIL CLEANER:  {len(trashed_today)} emails trashed | Inbox maintained")
+    lines.append(f"LENS AGENT:     {lens_processed_today} videos processed today | last: {lens.get('last_run','—')}")
+    lines.append(f"SUPERVISOR:     {run_count} runs today | Self-healing active")
+    if today_upgrades:
+        lines.append(f"TESTING ROOM:   {len(today_upgrades)} agent(s) upgraded tonight")
+"""
 
 
-# ═══════════════════════════════════════════════════════════════════
-# ── MAIN ──────────────────────────────────────────────────────────
-# ═══════════════════════════════════════════════════════════════════
-async def run():
-    print("═" * 60)
-    print(f"  NUCLEUS SUPERVISOR v{VERSION}")
-    print(f"  {sast_now()}")
-    print(f"  March deadline: {days_until_end_of_march()} days remaining")
-    print("═" * 60)
+# ════════════════════════════════════════════════════════════════════
+# PATCH 5 — self_healing_cycle() file detection (line ~1140 area)
+# FIND the file detection for-loop and REPLACE
+# ════════════════════════════════════════════════════════════════════
 
-    # ── STEP 1: EMAIL SCAN — ALWAYS FIRST, ALWAYS IMMEDIATE ───────
-    # Replies go out before ANY other task runs.
-    # GitHub failure emails also trigger immediate self-heal.
-    inbound = scan_inbox()
-    github_failures = []
-    for item in inbound:
-        sender, subject, body, msg_id, email_type = item
-        if email_type == "nucleus":
-            await handle_inbound_email(sender, subject, body, msg_id)
-        elif email_type == "github_failure":
-            github_failures.append((subject, body))
-            print(f"[HEAL] GitHub failure email detected — triggering self-heal")
+# ── FIND ──────────────────────────────────────────────────────────
+HEAL_OLD = """
+    for e in errors:
+        if "kidbuu_job_agent" in e["message"] or "job_agent" in e["message"].lower():
+            file_to_fix = "kidbuu_job_agent.py"
+            break
+        if "fx_agent_bot" in e["message"] or "fx_agent" in e["message"].lower():
+            file_to_fix = "fx_agent_bot.py"
+            break
+        if "nucleus_supervisor" in e["message"]:
+            file_to_fix = "nucleus_supervisor.py"
+            break
+"""
 
-    # ── STEP 2: SELF-HEALING ───────────────────────────────────────
-    # If GitHub sent a failure email, heal immediately regardless of schedule
-    if github_failures:
-        print(f"[HEAL] {len(github_failures)} GitHub failure(s) — healing now")
-        await self_healing_cycle()
-    else:
-        await self_healing_cycle()
+# ── REPLACE WITH ──────────────────────────────────────────────────
+HEAL_NEW = """
+    for e in errors:
+        msg_lower = e["message"].lower()
+        if "nucleus_job_agent" in msg_lower or "kidbuu_job_agent" in msg_lower or "job_agent" in msg_lower:
+            file_to_fix = "nucleus_job_agent.py"
+            break
+        if "fx_agent_bot" in msg_lower or "fx_agent" in msg_lower:
+            file_to_fix = "fx_agent_bot.py"
+            break
+        if "nucleus_lens_agent" in msg_lower or "lens_agent" in msg_lower:
+            file_to_fix = "nucleus_lens_agent.py"
+            break
+        if "nucleus_email_sanitizer" in msg_lower or "email_sanitizer" in msg_lower:
+            file_to_fix = "nucleus_email_sanitizer.py"
+            break
+        if "nucleus_supervisor" in msg_lower:
+            file_to_fix = "nucleus_supervisor.py"
+            break
+        if "shopify_agent" in msg_lower:
+            file_to_fix = "shopify_agent.py"
+            break
+"""
 
-    # ── STEP 3: TASK TRANSITIONS ───────────────────────────────────
-    await check_task_transitions()
 
-    # ── STEP 4: WAR ROOM COMMAND ───────────────────────────────────
-    cmd = read_command()
-    if cmd:
-        await handle_war_room_command(cmd)
-        clear_command()
+# ════════════════════════════════════════════════════════════════════
+# PATCH 6 — VERSION string (line ~42)
+# ════════════════════════════════════════════════════════════════════
 
-    # ── STEP 5: MONITOR AGENTS ────────────────────────────────────
-    issues = await monitor_all_agents()
+# FIND:   VERSION   = "5.4"
+# REPLACE: VERSION   = "5.6"
 
-    # ── STEP 6: WRITE CORTEX + TODO ───────────────────────────────
-    await write_cortex()
-    await write_todo()
 
-    # ── STEP 6b: AUTONOMOUS ENGINE ─────────────────────────────────
-    # Assembles agents, makes autonomous decisions, runs nightly learning
-    if ENGINE_AVAILABLE:
-        await engine_run()
-    else:
-        print("[ENGINE] Not available — upload nucleus_autonomous_engine.py")
+# ════════════════════════════════════════════════════════════════════
+# FILES TO REMOVE FROM REPO — NONE
+# ════════════════════════════════════════════════════════════════════
+"""
+DO NOT DELETE ANY FILES.
 
-    # ── STEP 7: BUILD CURRENT TASK ────────────────────────────────
-    current_task = get_current_task()
-    if current_task:
-        if current_task["id"] == "shopify_agent":
-            build = load_json(SHOPIFY_BUILD, {})
-            if build.get("percent_complete", 0) < 100:
-                await build_shopify_agent()
-            else:
-                print("[SHOPIFY] ✅ Build complete — moving to next task next run")
-        else:
-            print(f"[TASK] Next task: {current_task['name']} — build code needed")
-    else:
-        print("[TASK] ✅ All tasks complete")
+kidbuu_job_agent.py  — KEEP. Alias migration rule says keep until 3+ days stable.
+                       Self-heal now correctly routes to nucleus_job_agent.py instead.
 
-    # ── STEP 8: OVERNIGHT LEARNING ────────────────────────────────
-    await learn_overnight()
+shopify_status.json  — does not exist yet, no action needed. shopify_agent_status.json
+                       is the correct target (already in repo).
 
-    # ── STEP 9: PRIVATE REPO (creates once if not exists) ─────────
-    memory = load_json(MEMORY_FILE, {})
-    if not memory.get("private_repo_created"):
-        await create_private_repo()
-        memory["private_repo_created"] = True
-        save_json(MEMORY_FILE, memory)
+All other files in repo image are legitimate and active.
+"""
 
-    # ── STEP 10: TESTING ROOM (idle agents get upgraded 01:00-05:00) ─
-    if TESTING_ROOM_AVAILABLE:
-        await run_testing_room()
-        await sunday_self_audit()
 
-    # ── STEP 11: EOD SUMMARY (22:00 SAST) ────────────────────────
-    await send_eod_summary()
+# ════════════════════════════════════════════════════════════════════
+# SUMMARY — WHAT THESE 6 PATCHES FIX
+# ════════════════════════════════════════════════════════════════════
+"""
+BEFORE patches:
+  - Supervisor monitors 3 agents (FX, Job, Shopify)
+  - Email replies say nothing about Lens or Email Sanitizer
+  - EOD report has no Lens Agent line
+  - Self-heal tries to fix kidbuu_job_agent.py (old file)
+  - Self-heal doesn't know nucleus_lens_agent.py exists
+  - Todo dashboard missing Lens Agent entry
 
-    status_summary = "clean" if not issues else f"{len(issues)} issue(s)"
-    print(f"\n[SUPERVISOR] Done ✅ — {status_summary} — {sast_now()}")
+AFTER patches:
+  - Supervisor monitors ALL 5 agents
+  - Email replies include Lens + Email Sanitizer live status
+  - EOD report has full Lens Agent daily summary
+  - Self-heal routes job errors → nucleus_job_agent.py (correct)
+  - Self-heal can fix lens, email sanitizer, shopify when broken
+  - Todo dashboard shows Lens Agent as always-on
+  - VERSION = 5.6 — clear audit trail
 
-if __name__ == "__main__":
-    asyncio.run(run())
+ROOT CAUSE CONFIRMED:
+  It was NEVER a GitHub connectivity issue.
+  It was agent registry blindness — Supervisor's internal maps
+  were never updated when new agents were added to the repo.
+  These 6 targeted patches close every gap identified.
+"""

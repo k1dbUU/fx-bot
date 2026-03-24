@@ -192,6 +192,34 @@
   },
   "lessons": [
     {
+      "timestamp": "2026-03-24T03:42:07.173404+00:00",
+      "lesson": "The agent should investigate why the FX feed has been stuck \"OFFLINE\" with identical pricing data (ZAR 1623.25, GOLD 4408.49, etc.) across all runs, as this suggests a critical data connection failure that needs immediate resolution."
+    },
+    {
+      "timestamp": "2026-03-24T03:42:03.225496+00:00",
+      "lesson": "LESSON: ICT's 2026 smart money concepts emphasize live trade sessions with CISD methodology and order block ranking systems. | UPGRADE: YES | Updated strategies ranked for current market effectiveness validation.",
+      "source": "learning",
+      "topic": "ICT smart money concepts forex 2026 updates"
+    },
+    {
+      "timestamp": "2026-03-24T03:41:58.971923+00:00",
+      "lesson": "LESSON: Use Gmail API instead of IMAP for better authentication, rate limits, and attachment handling capabilities. | UPGRADE: YES | API provides OAuth2, structured responses, better error handling.",
+      "source": "learning",
+      "topic": "Python IMAP Gmail automation improvements"
+    },
+    {
+      "timestamp": "2026-03-24T03:41:55.154222+00:00",
+      "lesson": "LESSON: The ReAct pattern (alternating thought, action, observation) reduces hallucinations by grounding agent decisions in real-world feedback loops. | UPGRADE: YES | enables auditable autonomous reasoning with reduced error rates",
+      "source": "learning",
+      "topic": "autonomous agent design patterns 2026"
+    },
+    {
+      "timestamp": "2026-03-24T03:41:50.960588+00:00",
+      "lesson": "LESSON: Small businesses using AI automation in 2026 save $500-2,000 monthly and 20+ hours of work with tools under $20/month. | UPGRADE: YES | ROI proven: immediate cost savings plus significant time recovery.",
+      "source": "learning",
+      "topic": "AI automation services small business 2026"
+    },
+    {
       "timestamp": "2026-03-24T01:06:57.766581+00:00",
       "lesson": "When your system is consistently skipping all jobs (60 skipped across multiple runs), investigate the job filtering criteria or scheduling logic rather than continuing to run empty cycles."
     },
@@ -218,38 +246,18 @@
       "lesson": "LESSON: Async Python code can actually slow down applications when using sequential awaits or blocking libraries inappropriately. | UPGRADE: YES | Sequential awaits block event loop defeating async benefits entirely.",
       "source": "learning",
       "topic": "async Python performance GitHub Actions"
-    },
-    {
-      "timestamp": "2026-03-23T23:53:51.239765+00:00",
-      "lesson": "LESSON: Implement AI-powered content optimization and stricter authentication protocols now to prepare for 2026's evolved spam detection systems. | UPGRADE: YES | AI spam detection requires proactive content and authentication upgrades.",
-      "source": "learning",
-      "topic": "email deliverability best practices 2026"
-    },
-    {
-      "timestamp": "2026-03-23T23:53:46.950886+00:00",
-      "lesson": "LESSON: Focus on production-ready frameworks with proven track records rather than hyped solutions that fail in demos. | UPGRADE: YES | Production reliability beats marketing hype for sustainable development.",
-      "source": "learning",
-      "topic": "best free Python AI agent frameworks 2026"
-    },
-    {
-      "timestamp": "2026-03-23T23:53:42.066286+00:00",
-      "lesson": "LESSON: Focus on high-paying remote roles (R55k+) in tech and digital marketing to access global salaries while living in South Africa. | UPGRADE: YES | Global salary arbitrage maximizes purchasing power locally.",
-      "source": "learning",
-      "topic": "remote work south africa opportunities 2026"
-    },
-    {
-      "timestamp": "2026-03-23T23:53:37.874236+00:00",
-      "lesson": "LESSON: Claude 4.6 introduces 1M token context window and enhanced agentic capabilities for sustained autonomous tasks. | UPGRADE: YES | Massive context window enables complex multi-step autonomous operations.",
-      "source": "learning",
-      "topic": "Claude API new features capabilities 2026"
-    },
-    {
-      "timestamp": "2026-03-23T23:24:41.932506+00:00",
-      "lesson": "When the FX market status changes from \"IN SESSION\" to \"OFFLINE\" (as seen between runs #97 and #101), implement a different job processing strategy instead of continuing to skip all 60 jobs during offline hours."
     }
   ],
-  "last_lesson_utc": "2026-03-24T01:06:57.766595+00:00",
+  "last_lesson_utc": "2026-03-24T03:42:07.173413+00:00",
   "evolution_log": [
+    {
+      "timestamp": "2026-03-24T03:42:07.173416+00:00",
+      "event": "Lesson by Supervisor v5.4"
+    },
+    {
+      "timestamp": "2026-03-24T03:42:03.225666+00:00",
+      "event": "Learning: 4 lessons, 4 upgrades"
+    },
     {
       "timestamp": "2026-03-24T01:06:57.766598+00:00",
       "event": "Lesson by Supervisor v5.4"

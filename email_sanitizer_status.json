@@ -1,11 +1,11 @@
 {
   "deleted_today": 0,
   "reviewed_today": 0,
-  "protected_today": 250,
+  "protected_today": 300,
   "total_purged_alltime": 0,
   "storage_freed_mb": 0.0,
-  "last_run": "2026-03-24T08:58:44.039882+00:00",
+  "last_run": "2026-03-24T10:03:10.365911+00:00",
   "last_summary_date": "2026-03-23",
-  "run_count": 25,
+  "run_count": 26,
   "agent_version": "1.0"
 }

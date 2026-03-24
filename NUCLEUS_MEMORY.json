@@ -192,6 +192,34 @@
   },
   "lessons": [
     {
+      "timestamp": "2026-03-24T01:06:57.766581+00:00",
+      "lesson": "When your system is consistently skipping all jobs (60 skipped across multiple runs), investigate the job filtering criteria or scheduling logic rather than continuing to run empty cycles."
+    },
+    {
+      "timestamp": "2026-03-24T01:06:54.334857+00:00",
+      "lesson": "LESSON: Test inbox placement across multiple email providers regularly to catch deliverability issues before they impact campaign performance. | UPGRADE: YES | Testing prevents revenue loss from emails landing in spam folders.",
+      "source": "learning",
+      "topic": "email deliverability best practices 2026"
+    },
+    {
+      "timestamp": "2026-03-24T01:06:50.248141+00:00",
+      "lesson": "LESSON: Switch from IMAP to Gmail API for better authentication, rate limits, and modern email automation capabilities. | UPGRADE: YES | API eliminates OAUTH2 issues and provides superior functionality.",
+      "source": "learning",
+      "topic": "Python IMAP Gmail automation improvements"
+    },
+    {
+      "timestamp": "2026-03-24T01:06:45.926717+00:00",
+      "lesson": "LESSON: The ReAct pattern (alternating thought, action, observation) grounds agent decisions in real-world feedback to reduce hallucinations and improve auditability. | UPGRADE: YES | Real-world grounding prevents costly AI decision errors in production.",
+      "source": "learning",
+      "topic": "autonomous agent design patterns 2026"
+    },
+    {
+      "timestamp": "2026-03-24T01:06:41.970322+00:00",
+      "lesson": "LESSON: Async Python code can actually slow down applications when using sequential awaits or blocking libraries inappropriately. | UPGRADE: YES | Sequential awaits block event loop defeating async benefits entirely.",
+      "source": "learning",
+      "topic": "async Python performance GitHub Actions"
+    },
+    {
       "timestamp": "2026-03-23T23:53:51.239765+00:00",
       "lesson": "LESSON: Implement AI-powered content optimization and stricter authentication protocols now to prepare for 2026's evolved spam detection systems. | UPGRADE: YES | AI spam detection requires proactive content and authentication upgrades.",
       "source": "learning",
@@ -218,62 +246,18 @@
     {
       "timestamp": "2026-03-23T23:24:41.932506+00:00",
       "lesson": "When the FX market status changes from \"IN SESSION\" to \"OFFLINE\" (as seen between runs #97 and #101), implement a different job processing strategy instead of continuing to skip all 60 jobs during offline hours."
-    },
-    {
-      "timestamp": "2026-03-23T23:24:38.223930+00:00",
-      "lesson": "LESSON: South Africa's luxury pet furniture market presents untapped opportunity given global 9.2% CAGR growth while local pet market reached R7.1 billion in 2023. | UPGRADE: YES | Global luxury pet trends meeting established South African market.",
-      "source": "learning",
-      "topic": "luxury pet furniture market south africa 2026"
-    },
-    {
-      "timestamp": "2026-03-23T23:24:33.961341+00:00",
-      "lesson": "LESSON: The AI agent framework landscape in 2026 centers around LangGraph, CrewAI, AutoGen, and Agency Swarm as the top Python options. | UPGRADE: YES | These frameworks enable building autonomous systems like myself.",
-      "source": "learning",
-      "topic": "best free Python AI agent frameworks 2026"
-    },
-    {
-      "timestamp": "2026-03-23T23:24:29.916095+00:00",
-      "lesson": "LESSON: Small businesses in 2026 achieve $500-2000 monthly savings and 20+ hour reductions through affordable AI automation tools under $20/month. | UPGRADE: YES | Quantified ROI data validates immediate automation investment opportunities.",
-      "source": "learning",
-      "topic": "AI automation services small business 2026"
-    },
-    {
-      "timestamp": "2026-03-23T23:24:25.606714+00:00",
-      "lesson": "LESSON: Use time.process_time() instead of standard timing tools to accurately measure asyncio performance in Python applications. | UPGRADE: YES | Reveals CPU-specific measurement technique for async code profiling.",
-      "source": "learning",
-      "topic": "async Python performance GitHub Actions"
-    },
-    {
-      "timestamp": "2026-03-23T22:54:34.706261+00:00",
-      "lesson": "LESSON: ICT's 2026 updates emphasize live trade execution with CISD (Current Internal Structure Displacement) for precise entry timing. | UPGRADE: YES | Live execution focus improves real-time decision making skills.",
-      "source": "learning",
-      "topic": "ICT smart money concepts forex 2026 updates"
-    },
-    {
-      "timestamp": "2026-03-23T22:54:30.544941+00:00",
-      "lesson": "LESSON: The AI agent framework landscape in 2026 has standardized around the model-runtime-harness-agent stack with LangGraph, CrewAI, and AutoGen leading as top free Python options. | UPGRADE: YES | Framework standardization enables better interoperability and development efficiency.",
-      "source": "learning",
-      "topic": "best free Python AI agent frameworks 2026"
-    },
-    {
-      "timestamp": "2026-03-23T22:54:26.148166+00:00",
-      "lesson": "LESSON: Remote work opportunities in South Africa will offer R55k+ salaries by accessing global markets while maintaining local cost of living advantages. | UPGRADE: YES | Global salary arbitrage creates significant earning potential increase.",
-      "source": "learning",
-      "topic": "remote work south africa opportunities 2026"
-    },
-    {
-      "timestamp": "2026-03-23T22:54:22.393959+00:00",
-      "lesson": "LESSON: Test inbox placement across providers regularly to catch deliverability issues before they impact campaign performance. | UPGRADE: YES | Testing prevents revenue loss from emails landing in spam folders.",
-      "source": "learning",
-      "topic": "email deliverability best practices 2026"
-    },
-    {
-      "timestamp": "2026-03-23T22:16:48.739583+00:00",
-      "lesson": "The agent should investigate why job processing completely stops when FX markets go OFFLINE, as this suggests critical system dependency that could be causing unnecessary operational downtime."
     }
   ],
-  "last_lesson_utc": "2026-03-23T23:24:41.932518+00:00",
+  "last_lesson_utc": "2026-03-24T01:06:57.766595+00:00",
   "evolution_log": [
+    {
+      "timestamp": "2026-03-24T01:06:57.766598+00:00",
+      "event": "Lesson by Supervisor v5.4"
+    },
+    {
+      "timestamp": "2026-03-24T01:06:54.335057+00:00",
+      "event": "Learning: 4 lessons, 4 upgrades"
+    },
     {
       "timestamp": "2026-03-23T23:53:51.239961+00:00",
       "event": "Learning: 4 lessons, 4 upgrades"

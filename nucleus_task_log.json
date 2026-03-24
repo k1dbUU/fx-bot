@@ -1,7 +1,7 @@
 {
   "notified": [
-    "shopify_agent_complete",
     "design_agent_start",
-    "vercel_deploy_start"
+    "vercel_deploy_start",
+    "shopify_agent_complete"
   ]
 }

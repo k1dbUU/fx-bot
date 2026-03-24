@@ -16867,3 +16867,270 @@
 2026-03-24 13:53:35,381 [INFO] [SKIP] No company name extractable — agency or undisclosed: Remote Data Entry Clerk Jobs SA 2025- Apply Now
 2026-03-24 13:53:35,381 [INFO] [SKIP] No company in: '26 remote data entry Jobs in South Africa, October 2025 | Gl'
 2026-03-24 13:53:35,381 [INFO] [SKIP] No company name extractable — agency or undisclosed: 26 remote data entry Jobs in South Africa, October 2025 | Gl
+2026-03-24 14:47:29,907 [INFO] 
+[SEARCH] remote data entry jobs south africa 2025 apply
+2026-03-24 14:47:31,023 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=remote+data+entry+jobs+south+africa+2025+apply&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:47:31,025 [INFO] [SEARCH] 'remote data entry jobs south africa 2025' → 4 results
+2026-03-24 14:47:31,028 [INFO] [SKIP] No company in: '66 Remote Data Entry jobs in South Africa - LinkedIn'
+2026-03-24 14:47:31,028 [INFO] [SKIP] No company name extractable — agency or undisclosed: 66 Remote Data Entry jobs in South Africa - LinkedIn
+2026-03-24 14:47:31,029 [INFO] [EXTRACT] From title: 'Careerjet'
+2026-03-24 14:47:31,029 [INFO] [COMPANY] Found: 'Careerjet' from 'remote data entry jobs in South Africa - Careerjet'
+2026-03-24 14:47:31,831 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Careerjet+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:47:33,971 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Careerjet+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 202 Accepted"
+2026-03-24 14:47:35,978 [INFO] [SCOUR] Careerjet: Found 2 emails, 0 WhatsApp
+2026-03-24 14:47:44,359 [INFO] [VERIFY] ? info@mycareerjet.com — server uncertain (code None)
+2026-03-24 14:47:53,386 [INFO] [VERIFY] ? error-lite@duckduckgo.com — server uncertain (code None)
+2026-03-24 14:47:54,387 [INFO] [READY] Careerjet: 2 verified email(s) → info@mycareerjet.com
+2026-03-24 14:47:54,387 [INFO] [SKIP] Careerjet — applied within 30 days
+2026-03-24 14:47:54,388 [INFO] [SKIP] No company in: 'Remote Data Entry Jobs - 7 September 2025 | Indeed South Afr'
+2026-03-24 14:47:54,388 [INFO] [SKIP] No company name extractable — agency or undisclosed: Remote Data Entry Jobs - 7 September 2025 | Indeed South Afr
+2026-03-24 14:47:54,388 [INFO] [SKIP] No company in: 'Remote Data Entry Clerk Jobs SA 2025- Apply Now'
+2026-03-24 14:47:54,388 [INFO] [SKIP] No company name extractable — agency or undisclosed: Remote Data Entry Clerk Jobs SA 2025- Apply Now
+2026-03-24 14:47:57,391 [INFO] 
+[SEARCH] CRM administrator remote job south africa hiring
+2026-03-24 14:47:58,326 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=CRM+administrator+remote+job+south+africa+hiring&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:47:58,327 [INFO] [SEARCH] 'CRM administrator remote job south afric' → 4 results
+2026-03-24 14:47:58,328 [INFO] [SKIP] No company in: '200+ Remote Crm Jobs, Employment 20 March 2026| Indeed'
+2026-03-24 14:47:58,328 [INFO] [SKIP] No company name extractable — agency or undisclosed: 200+ Remote Crm Jobs, Employment 20 March 2026| Indeed
+2026-03-24 14:47:58,328 [INFO] [SKIP] No company in: '5,000+ Crm jobs in South Africa (462 new) - LinkedIn'
+2026-03-24 14:47:58,328 [INFO] [SKIP] No company name extractable — agency or undisclosed: 5,000+ Crm jobs in South Africa (462 new) - LinkedIn
+2026-03-24 14:47:58,328 [INFO] [FILTER] Blocked — experience requirement: 'lead '
+2026-03-24 14:47:58,328 [INFO] [SKIP] No company in: 'Hire the best remote CRM Administrator employees in South Af'
+2026-03-24 14:47:58,328 [INFO] [SKIP] No company name extractable — agency or undisclosed: Hire the best remote CRM Administrator employees in South Af
+2026-03-24 14:48:01,332 [INFO] 
+[SEARCH] data capture clerk remote work south africa
+2026-03-24 14:48:02,123 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=data+capture+clerk+remote+work+south+africa&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:48:02,124 [INFO] [SEARCH] 'data capture clerk remote work south afr' → 4 results
+2026-03-24 14:48:02,125 [INFO] [SKIP] No company in: '692 Data Capturing Clerk jobs in South Africa (62 new) - Lin'
+2026-03-24 14:48:02,125 [INFO] [SKIP] No company name extractable — agency or undisclosed: 692 Data Capturing Clerk jobs in South Africa (62 new) - Lin
+2026-03-24 14:48:02,125 [INFO] [SKIP] No company in: 'Urgent! Online data capturing jobs - March 2026 - 7753 Onlin'
+2026-03-24 14:48:02,125 [INFO] [SKIP] No company name extractable — agency or undisclosed: Urgent! Online data capturing jobs - March 2026 - 7753 Onlin
+2026-03-24 14:48:02,125 [INFO] [EXTRACT] From title: 'Careerjet'
+2026-03-24 14:48:02,125 [INFO] [COMPANY] Found: 'Careerjet' from 'work from home data capture jobs in South Africa |'
+2026-03-24 14:48:02,783 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Careerjet+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:48:04,882 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Careerjet+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 202 Accepted"
+2026-03-24 14:48:06,887 [INFO] [SCOUR] Careerjet: Found 5 emails, 0 WhatsApp
+2026-03-24 14:48:11,883 [INFO] [VERIFY] ✅ info@jet.co.za — confirmed real
+2026-03-24 14:48:20,894 [INFO] [VERIFY] ? info@mycareerjet.com — server uncertain (code None)
+2026-03-24 14:48:26,871 [INFO] [VERIFY] ✅ accounts@jet.co.za — confirmed real
+2026-03-24 14:48:32,844 [INFO] [VERIFY] ✅ sales@jet.co.za — confirmed real
+2026-03-24 14:48:38,799 [INFO] [VERIFY] ✅ support@jet.co.za — confirmed real
+2026-03-24 14:48:39,800 [INFO] [READY] Careerjet: 5 verified email(s) → info@jet.co.za
+2026-03-24 14:48:39,800 [INFO] [SKIP] Careerjet — applied within 30 days
+2026-03-24 14:48:39,800 [INFO] [SKIP] No company in: '2 000+ Data Capturing, Remote Jobs, Employment 17 March 2026'
+2026-03-24 14:48:39,801 [INFO] [SKIP] No company name extractable — agency or undisclosed: 2 000+ Data Capturing, Remote Jobs, Employment 17 March 2026
+2026-03-24 14:48:42,804 [INFO] 
+[SEARCH] virtual assistant remote job south africa entry level
+2026-03-24 14:48:43,728 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=virtual+assistant+remote+job+south+africa+entry+level&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:48:43,729 [INFO] [SEARCH] 'virtual assistant remote job south afric' → 4 results
+2026-03-24 14:48:43,729 [INFO] [SKIP] No company in: '477 Virtual Assistant jobs in South Africa (43 new) - Linked'
+2026-03-24 14:48:43,729 [INFO] [SKIP] No company name extractable — agency or undisclosed: 477 Virtual Assistant jobs in South Africa (43 new) - Linked
+2026-03-24 14:48:43,730 [INFO] [SKIP] No company in: 'Virtual Assistant Jobs jobs in South Africa | Pnet'
+2026-03-24 14:48:43,730 [INFO] [SKIP] No company name extractable — agency or undisclosed: Virtual Assistant Jobs jobs in South Africa | Pnet
+2026-03-24 14:48:43,730 [INFO] [SKIP] No company in: '25+ Virtual Assistant Jobs, Employment 23 March 2026| Indeed'
+2026-03-24 14:48:43,730 [INFO] [SKIP] No company name extractable — agency or undisclosed: 25+ Virtual Assistant Jobs, Employment 23 March 2026| Indeed
+2026-03-24 14:48:43,730 [INFO] [EXTRACT] From title: 'Apply Now 2025'
+2026-03-24 14:48:43,730 [INFO] [COMPANY] Found: 'Apply Now 2025' from 'Virtual Assistant Remote Jobs South Africa - Apply'
+2026-03-24 14:48:44,428 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Apply+Now+2025+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:48:47,260 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Apply+Now+2025+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:48:49,268 [INFO] [SCOUR] Apply Now 2025: Found 2 emails, 0 WhatsApp
+2026-03-24 14:48:57,521 [INFO] [VERIFY] ? talent@zz2.co.za — server uncertain (code None)
+2026-03-24 14:49:00,534 [INFO] [READY] Apply Now 2025: 2 verified email(s) → talent@zz2.co.za
+2026-03-24 14:49:00,534 [INFO] [SKIP] Apply Now 2025 — applied within 30 days
+2026-03-24 14:49:03,539 [INFO] 
+[SEARCH] back office administrator remote cape town hiring
+2026-03-24 14:49:04,277 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=back+office+administrator+remote+cape+town+hiring&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:04,278 [INFO] [SEARCH] 'back office administrator remote cape to' → 4 results
+2026-03-24 14:49:04,279 [INFO] [FILTER] Blocked — experience requirement: 'manager'
+2026-03-24 14:49:04,279 [INFO] [SKIP] No company in: 'Urgent! back office jobs in City of Cape Town - 452 current '
+2026-03-24 14:49:04,279 [INFO] [SKIP] No company name extractable — agency or undisclosed: Urgent! back office jobs in City of Cape Town - 452 current 
+2026-03-24 14:49:04,279 [INFO] [SKIP] No company in: 'Remote Administrator Jobs in Cape Town | Pnet'
+2026-03-24 14:49:04,279 [INFO] [SKIP] No company name extractable — agency or undisclosed: Remote Administrator Jobs in Cape Town | Pnet
+2026-03-24 14:49:04,279 [INFO] [SKIP] No company in: '400 Remote Administration jobs in South Africa - LinkedIn'
+2026-03-24 14:49:04,279 [INFO] [SKIP] No company name extractable — agency or undisclosed: 400 Remote Administration jobs in South Africa - LinkedIn
+2026-03-24 14:49:07,282 [INFO] 
+[SEARCH] AI data annotator remote job south africa
+2026-03-24 14:49:08,000 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=AI+data+annotator+remote+job+south+africa&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:08,002 [INFO] [SEARCH] 'AI data annotator remote job south afric' → 4 results
+2026-03-24 14:49:08,002 [INFO] [SKIP] No company in: 'Urgent! Data annotator remote jobs - March 2026 - 11328 Data'
+2026-03-24 14:49:08,002 [INFO] [SKIP] No company name extractable — agency or undisclosed: Urgent! Data annotator remote jobs - March 2026 - 11328 Data
+2026-03-24 14:49:08,002 [INFO] [SKIP] No company in: 'Remote: AI Data Annotation Specialist (ZA) - LinkedIn'
+2026-03-24 14:49:08,002 [INFO] [SKIP] No company name extractable — agency or undisclosed: Remote: AI Data Annotation Specialist (ZA) - LinkedIn
+2026-03-24 14:49:08,002 [INFO] [SKIP] No company in: 'Ai Annotator Jobs - 21 March 2026 | Indeed South Africa'
+2026-03-24 14:49:08,002 [INFO] [SKIP] No company name extractable — agency or undisclosed: Ai Annotator Jobs - 21 March 2026 | Indeed South Africa
+2026-03-24 14:49:08,003 [INFO] [EXTRACT] From title: 'TELUS Digital'
+2026-03-24 14:49:08,003 [INFO] [COMPANY] Found: 'TELUS Digital' from 'Remote AI Data Annotator - Flexible Hours Jobs | T'
+2026-03-24 14:49:08,854 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=TELUS+Digital+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:10,966 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=TELUS+Digital+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 202 Accepted"
+2026-03-24 14:49:12,972 [INFO] [SCOUR] TELUS Digital: Found 2 emails, 0 WhatsApp
+2026-03-24 14:49:21,005 [INFO] [VERIFY] ? mycontenthub@telus.com — server uncertain (code None)
+2026-03-24 14:49:30,017 [INFO] [VERIFY] ? error-lite@duckduckgo.com — server uncertain (code None)
+2026-03-24 14:49:31,019 [INFO] [READY] TELUS Digital: 2 verified email(s) → mycontenthub@telus.com
+2026-03-24 14:49:31,019 [INFO] [SKIP] TELUS Digital — applied within 30 days
+2026-03-24 14:49:34,023 [INFO] 
+[SEARCH] remote bookkeeper entry level south africa
+2026-03-24 14:49:34,745 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=remote+bookkeeper+entry+level+south+africa&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:34,746 [INFO] [SEARCH] 'remote bookkeeper entry level south afri' → 4 results
+2026-03-24 14:49:34,747 [INFO] [SKIP] No company in: '68 Remote Bookkeeper jobs in South Africa - LinkedIn'
+2026-03-24 14:49:34,747 [INFO] [SKIP] No company name extractable — agency or undisclosed: 68 Remote Bookkeeper jobs in South Africa - LinkedIn
+2026-03-24 14:49:34,747 [INFO] [SKIP] No company in: '25+ Remote Bookkeeping Jobs, Employment 23 March 2026| Indee'
+2026-03-24 14:49:34,747 [INFO] [SKIP] No company name extractable — agency or undisclosed: 25+ Remote Bookkeeping Jobs, Employment 23 March 2026| Indee
+2026-03-24 14:49:34,747 [INFO] [EXTRACT] From title: 'Adzuna.co.za'
+2026-03-24 14:49:34,747 [INFO] [COMPANY] Found: 'Adzuna.co.za' from '136 remote bookkeeper Jobs in South Africa - Adzun'
+2026-03-24 14:49:35,550 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Adzuna.co.za+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:38,356 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Adzuna.co.za+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:40,363 [INFO] [SCOUR] Adzuna.co.za: Found 1 emails, 0 WhatsApp
+2026-03-24 14:49:48,379 [INFO] [VERIFY] ? supportuk@adzuna.com — server uncertain (code None)
+2026-03-24 14:49:49,380 [INFO] [READY] Adzuna.co.za: 1 verified email(s) → supportuk@adzuna.com
+2026-03-24 14:49:49,380 [INFO] [SKIP] Adzuna.co.za — applied within 30 days
+2026-03-24 14:49:49,380 [INFO] [SKIP] No company in: 'Bookkeeper Jobs in Remote | Pnet'
+2026-03-24 14:49:49,380 [INFO] [SKIP] No company name extractable — agency or undisclosed: Bookkeeper Jobs in Remote | Pnet
+2026-03-24 14:49:52,384 [INFO] 
+[SEARCH] helpdesk support remote south africa entry level
+2026-03-24 14:49:53,200 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=helpdesk+support+remote+south+africa+entry+level&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:53,202 [INFO] [SEARCH] 'helpdesk support remote south africa ent' → 4 results
+2026-03-24 14:49:53,202 [INFO] [SKIP] No company in: '300+ Remote IT Helpdesk Technician, Entry to Level 3 Jobs ..'
+2026-03-24 14:49:53,202 [INFO] [SKIP] No company name extractable — agency or undisclosed: 300+ Remote IT Helpdesk Technician, Entry to Level 3 Jobs ..
+2026-03-24 14:49:53,202 [INFO] [SKIP] No company in: 'IT Helpdesk jobs in South Africa | Pnet'
+2026-03-24 14:49:53,202 [INFO] [SKIP] No company name extractable — agency or undisclosed: IT Helpdesk jobs in South Africa | Pnet
+2026-03-24 14:49:53,202 [INFO] [SKIP] No company in: 'Urgent! Helpdesk technical support jobs in Remote - March 20'
+2026-03-24 14:49:53,203 [INFO] [SKIP] No company name extractable — agency or undisclosed: Urgent! Helpdesk technical support jobs in Remote - March 20
+2026-03-24 14:49:53,203 [INFO] [SKIP] No company in: '99 Helpdesk jobs in South Africa (3 new) - LinkedIn'
+2026-03-24 14:49:53,203 [INFO] [SKIP] No company name extractable — agency or undisclosed: 99 Helpdesk jobs in South Africa (3 new) - LinkedIn
+2026-03-24 14:49:56,206 [INFO] 
+[SEARCH] IT support technician remote south africa junior
+2026-03-24 14:49:56,979 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=IT+support+technician+remote+south+africa+junior&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:56,980 [INFO] [SEARCH] 'IT support technician remote south afric' → 4 results
+2026-03-24 14:49:56,981 [INFO] [SKIP] No company in: 'Junior IT Support Technician jobs in South Africa | Pnet'
+2026-03-24 14:49:56,981 [INFO] [SKIP] No company name extractable — agency or undisclosed: Junior IT Support Technician jobs in South Africa | Pnet
+2026-03-24 14:49:56,981 [INFO] [SKIP] No company in: '79 Junior It Support Technician jobs in South Africa - Linke'
+2026-03-24 14:49:56,981 [INFO] [SKIP] No company name extractable — agency or undisclosed: 79 Junior It Support Technician jobs in South Africa - Linke
+2026-03-24 14:49:56,981 [INFO] [SKIP] No company in: 'remote junior technical support jobs - Indeed'
+2026-03-24 14:49:56,981 [INFO] [SKIP] No company name extractable — agency or undisclosed: remote junior technical support jobs - Indeed
+2026-03-24 14:49:56,981 [INFO] [EXTRACT] From title: 'Adzuna.co.za'
+2026-03-24 14:49:56,981 [INFO] [COMPANY] Found: 'Adzuna.co.za' from '159 remote IT support Jobs in South Africa - Adzun'
+2026-03-24 14:49:57,814 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Adzuna.co.za+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:49:59,923 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Adzuna.co.za+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 202 Accepted"
+2026-03-24 14:50:01,929 [INFO] [SCOUR] Adzuna.co.za: Found 2 emails, 0 WhatsApp
+2026-03-24 14:50:09,939 [INFO] [VERIFY] ? supportuk@adzuna.com — server uncertain (code None)
+2026-03-24 14:50:18,951 [INFO] [VERIFY] ? error-lite@duckduckgo.com — server uncertain (code None)
+2026-03-24 14:50:19,952 [INFO] [READY] Adzuna.co.za: 2 verified email(s) → supportuk@adzuna.com
+2026-03-24 14:50:19,952 [INFO] [SKIP] Adzuna.co.za — applied within 30 days
+2026-03-24 14:50:22,956 [INFO] 
+[SEARCH] data entry specialist remote no experience required
+2026-03-24 14:50:23,893 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=data+entry+specialist+remote+no+experience+required&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:50:23,901 [INFO] [SEARCH] 'data entry specialist remote no experien' → 4 results
+2026-03-24 14:50:23,902 [INFO] [SKIP] No company in: 'data entry from home, no experience jobs - Indeed'
+2026-03-24 14:50:23,902 [INFO] [SKIP] No company name extractable — agency or undisclosed: data entry from home, no experience jobs - Indeed
+2026-03-24 14:50:23,902 [INFO] [SKIP] No company in: '20 Remote Data Entry Jobs Hiring Right Now (No Experience Ne'
+2026-03-24 14:50:23,902 [INFO] [SKIP] No company name extractable — agency or undisclosed: 20 Remote Data Entry Jobs Hiring Right Now (No Experience Ne
+2026-03-24 14:50:23,902 [INFO] [SKIP] No company in: '20 Best no experience necessary, data entry jobs in Remote ('
+2026-03-24 14:50:23,902 [INFO] [SKIP] No company name extractable — agency or undisclosed: 20 Best no experience necessary, data entry jobs in Remote (
+2026-03-24 14:50:23,902 [INFO] [EXTRACT] From title: 'Apply Now'
+2026-03-24 14:50:23,902 [INFO] [COMPANY] Found: 'Apply Now' from 'Remote Entry-level Data Entry Jobs - Apply Now'
+2026-03-24 14:50:24,664 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Apply+Now+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:50:27,429 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Apply+Now+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:50:29,436 [INFO] [SCOUR] Apply Now: Found 5 emails, 0 WhatsApp
+2026-03-24 14:50:34,410 [INFO] [VERIFY] ❌ info@mpc.co.za — mailbox doesn't exist
+2026-03-24 14:50:44,240 [INFO] [VERIFY] ? jobs@isilumko.co.za — server uncertain (code None)
+2026-03-24 14:50:53,758 [INFO] [VERIFY] ? info@kelly.co.za — server uncertain (code None)
+2026-03-24 14:51:03,941 [INFO] [VERIFY] ? enquiries@cao.ac.za — server uncertain (code None)
+2026-03-24 14:51:13,179 [INFO] [VERIFY] ? applications@ufs.ac.za — server uncertain (code None)
+2026-03-24 14:51:14,181 [INFO] [READY] Apply Now: 4 verified email(s) → jobs@isilumko.co.za
+2026-03-24 14:51:14,181 [INFO] [SKIP] Apply Now — applied within 30 days
+2026-03-24 14:51:17,182 [INFO] 
+[SEARCH] transcription remote job south africa 2025
+2026-03-24 14:51:18,034 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=transcription+remote+job+south+africa+2025&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:51:18,035 [INFO] [SEARCH] 'transcription remote job south africa 20' → 4 results
+2026-03-24 14:51:18,036 [INFO] [SKIP] No company in: 'Work from Home as a Transcriber in South Africa 2025'
+2026-03-24 14:51:18,036 [INFO] [SKIP] No company name extractable — agency or undisclosed: Work from Home as a Transcriber in South Africa 2025
+2026-03-24 14:51:18,036 [INFO] [SKIP] No company in: '27 Transcription jobs in South Africa (3 new) - LinkedIn'
+2026-03-24 14:51:18,036 [INFO] [SKIP] No company name extractable — agency or undisclosed: 27 Transcription jobs in South Africa (3 new) - LinkedIn
+2026-03-24 14:51:18,036 [INFO] [SKIP] No company in: 'Urgent! Transcription jobs - December 2025 - 80 Transcriptio'
+2026-03-24 14:51:18,036 [INFO] [SKIP] No company name extractable — agency or undisclosed: Urgent! Transcription jobs - December 2025 - 80 Transcriptio
+2026-03-24 14:51:18,036 [INFO] [SKIP] No company in: 'Transcription Jobs 2025: Listen, Type, Earn - Sasa-vacancies'
+2026-03-24 14:51:18,036 [INFO] [SKIP] No company name extractable — agency or undisclosed: Transcription Jobs 2025: Listen, Type, Earn - Sasa-vacancies
+2026-03-24 14:51:21,040 [INFO] 
+[SEARCH] remote admin assistant south africa hiring now
+2026-03-24 14:51:21,755 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=remote+admin+assistant+south+africa+hiring+now&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:51:21,756 [INFO] [SEARCH] 'remote admin assistant south africa hiri' → 4 results
+2026-03-24 14:51:21,756 [INFO] [SKIP] No company in: '65 Remote Administrative Assistant jobs in South Africa (1 n'
+2026-03-24 14:51:21,756 [INFO] [SKIP] No company name extractable — agency or undisclosed: 65 Remote Administrative Assistant jobs in South Africa (1 n
+2026-03-24 14:51:21,756 [INFO] [SKIP] No company in: 'Administration Assistant Jobs in Remote | Pnet'
+2026-03-24 14:51:21,756 [INFO] [SKIP] No company name extractable — agency or undisclosed: Administration Assistant Jobs in Remote | Pnet
+2026-03-24 14:51:21,756 [INFO] [FILTER] Blocked — experience requirement: 'lead '
+2026-03-24 14:51:21,756 [INFO] [SKIP] No company in: '24 Remote administrative assistant jobs in South Africa'
+2026-03-24 14:51:21,756 [INFO] [SKIP] No company name extractable — agency or undisclosed: 24 Remote administrative assistant jobs in South Africa
+2026-03-24 14:51:24,760 [INFO] 
+[SEARCH] CRM data entry remote job UK hire south africa contractor
+2026-03-24 14:51:25,616 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=CRM+data+entry+remote+job+UK+hire+south+africa+contractor&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:51:25,617 [INFO] [SEARCH] 'CRM data entry remote job UK hire south ' → 4 results
+2026-03-24 14:51:25,618 [INFO] [SKIP] No company in: 'Hire Remote Talent From South Africa | Remote Recruitment'
+2026-03-24 14:51:25,618 [INFO] [SKIP] No company name extractable — agency or undisclosed: Hire Remote Talent From South Africa | Remote Recruitment
+2026-03-24 14:51:25,618 [INFO] [SKIP] No company in: 'uk remote jobs for south africans jobs'
+2026-03-24 14:51:25,618 [INFO] [SKIP] No company name extractable — agency or undisclosed: uk remote jobs for south africans jobs
+2026-03-24 14:51:25,618 [INFO] [SKIP] No company in: 'Future Teams - Hire remote teams in South Africa'
+2026-03-24 14:51:25,618 [INFO] [SKIP] No company name extractable — agency or undisclosed: Future Teams - Hire remote teams in South Africa
+2026-03-24 14:51:25,618 [INFO] [EXTRACT] From title: 'Remoote'
+2026-03-24 14:51:25,618 [INFO] [COMPANY] Found: 'Remoote' from 'Remote Recruitment: UK &amp; EU Remote Jobs for So'
+2026-03-24 14:51:26,382 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Remoote+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:51:29,270 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Remoote+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:51:31,277 [INFO] [SCOUR] Remoote: No emails found — guessing ['hr@remoote.com', 'careers@remoote.com', 'info@remoote.com']
+2026-03-24 14:51:31,278 [INFO] [SCOUR] Remoote: Found 3 emails, 0 WhatsApp
+2026-03-24 14:51:39,408 [INFO] [VERIFY] ? hr@remoote.com — server uncertain (code None)
+2026-03-24 14:51:48,444 [INFO] [VERIFY] ? careers@remoote.com — server uncertain (code None)
+2026-03-24 14:51:57,477 [INFO] [VERIFY] ? info@remoote.com — server uncertain (code None)
+2026-03-24 14:51:58,479 [INFO] [READY] Remoote: 3 verified email(s) → hr@remoote.com
+2026-03-24 14:51:58,479 [INFO] [SKIP] Remoote — applied within 30 days
+2026-03-24 14:52:01,482 [INFO] 
+[SEARCH] online data processor remote job south africa apply
+2026-03-24 14:52:02,307 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=online+data+processor+remote+job+south+africa+apply&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:52:02,308 [INFO] [SEARCH] 'online data processor remote job south a' → 4 results
+2026-03-24 14:52:02,308 [INFO] [EXTRACT] From title: 'December 2025'
+2026-03-24 14:52:02,308 [INFO] [COMPANY] Found: 'December 2025' from '288 remote data processing Jobs in South Africa | '
+2026-03-24 14:52:03,263 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=December+2025+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:52:05,383 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=December+2025+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 202 Accepted"
+2026-03-24 14:52:07,391 [INFO] [SCOUR] December 2025: Found 4 emails, 0 WhatsApp
+2026-03-24 14:52:20,327 [INFO] [VERIFY] ? error-lite@duckduckgo.com — server uncertain (code None)
+2026-03-24 14:52:21,329 [INFO] [READY] December 2025: 4 verified email(s) → escontactcentre@labour.gov.za
+2026-03-24 14:52:21,329 [INFO] [SKIP] December 2025 — applied within 30 days
+2026-03-24 14:52:21,329 [INFO] [SKIP] No company in: '53 Data Processing Online jobs in South Africa (7 new)'
+2026-03-24 14:52:21,329 [INFO] [SKIP] No company name extractable — agency or undisclosed: 53 Data Processing Online jobs in South Africa (7 new)
+2026-03-24 14:52:21,329 [INFO] [EXTRACT] From title: 'Careerjet'
+2026-03-24 14:52:21,329 [INFO] [COMPANY] Found: 'Careerjet' from 'online data processing jobs in South Africa | Care'
+2026-03-24 14:52:21,990 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Careerjet+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:52:24,759 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Careerjet+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:52:26,766 [INFO] [SCOUR] Careerjet: Found 4 emails, 0 WhatsApp
+2026-03-24 14:52:35,357 [INFO] [VERIFY] ? jobs@isilumko.co.za — server uncertain (code None)
+2026-03-24 14:52:45,229 [INFO] [VERIFY] ? info@kelly.co.za — server uncertain (code None)
+2026-03-24 14:52:54,378 [INFO] [VERIFY] ? info@mycareerjet.com — server uncertain (code None)
+2026-03-24 14:53:03,969 [INFO] [VERIFY] ? cv@adcorpblu.com — server uncertain (code None)
+2026-03-24 14:53:04,969 [INFO] [READY] Careerjet: 4 verified email(s) → jobs@isilumko.co.za
+2026-03-24 14:53:04,969 [INFO] [SKIP] Careerjet — applied within 30 days
+2026-03-24 14:53:04,970 [INFO] [SKIP] No company in: 'Online Data Capture Jobs in South Africa | Pnet'
+2026-03-24 14:53:04,970 [INFO] [SKIP] No company name extractable — agency or undisclosed: Online Data Capture Jobs in South Africa | Pnet
+2026-03-24 14:53:07,973 [INFO] 
+[SEARCH] remote customer support data entry south africa 2025
+2026-03-24 14:53:08,716 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=remote+customer+support+data+entry+south+africa+2025&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:53:08,717 [INFO] [SEARCH] 'remote customer support data entry south' → 4 results
+2026-03-24 14:53:08,717 [INFO] [EXTRACT] From title: 'Side Hustles RSA'
+2026-03-24 14:53:08,717 [INFO] [COMPANY] Found: 'Side Hustles RSA' from 'Data Entry Jobs for South Africans (2025 Guide) - '
+2026-03-24 14:53:09,433 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Side+Hustles+RSA+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:53:11,569 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=Side+Hustles+RSA+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 202 Accepted"
+2026-03-24 14:53:13,576 [INFO] [SCOUR] Side Hustles RSA: Found 2 emails, 0 WhatsApp
+2026-03-24 14:53:22,103 [INFO] [VERIFY] ? info@sidehustlesrsa.co.za — server uncertain (code None)
+2026-03-24 14:53:31,116 [INFO] [VERIFY] ? error-lite@duckduckgo.com — server uncertain (code None)
+2026-03-24 14:53:32,117 [INFO] [READY] Side Hustles RSA: 2 verified email(s) → info@sidehustlesrsa.co.za
+2026-03-24 14:53:32,117 [INFO] [SKIP] Side Hustles RSA — applied within 30 days
+2026-03-24 14:53:32,117 [INFO] [SKIP] No company in: '66 Remote Data Entry jobs in South Africa - LinkedIn'
+2026-03-24 14:53:32,117 [INFO] [SKIP] No company name extractable — agency or undisclosed: 66 Remote Data Entry jobs in South Africa - LinkedIn
+2026-03-24 14:53:32,118 [INFO] [SKIP] No company in: '387 remote customer support Jobs in South Africa, November 2'
+2026-03-24 14:53:32,118 [INFO] [SKIP] No company name extractable — agency or undisclosed: 387 remote customer support Jobs in South Africa, November 2
+2026-03-24 14:53:32,118 [INFO] [EXTRACT] From title: 'March 2026'
+2026-03-24 14:53:32,118 [INFO] [COMPANY] Found: 'March 2026' from '98 remote data entry Jobs in South Africa | March '
+2026-03-24 14:53:32,915 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=March+2026+official+website+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:53:35,678 [INFO] HTTP Request: GET https://html.duckduckgo.com/html/?q=March+2026+HR+email+address+hiring+contact&kl=za-en "HTTP/1.1 200 OK"
+2026-03-24 14:53:37,685 [INFO] [SCOUR] March 2026: Found 1 emails, 0 WhatsApp
+2026-03-24 14:53:46,396 [INFO] [VERIFY] ? ocj@judiciary.org.za — server uncertain (code None)
+2026-03-24 14:53:47,397 [INFO] [READY] March 2026: 1 verified email(s) → ocj@judiciary.org.za
+2026-03-24 14:53:47,397 [INFO] [SKIP] March 2026 — applied within 30 days

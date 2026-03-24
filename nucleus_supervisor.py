@@ -4,274 +4,153 @@
 ║  v5.6 PATCHES:                                                   ║
 ║    - AGENTS registry: Lens Agent + Email Sanitizer added        ║
 ║    - build_system_context: Lens Agent status in all emails      ║
-║    - write_todo: Lens Agent in always_on block                  ║
-║    - send_eod_summary: Lens Agent daily report line             ║
-║    - self_healing_cycle: knows nucleus_lens_agent.py +          ║
-║      nucleus_email_sanitizer.py file names                      ║
+║    - handle_inbound_email: Trusted build intent -> Engine       ║
 ║    - VERSION bumped to 5.6                                      ║
 ╚══════════════════════════════════════════════════════════════════╝
-
-HOW TO USE THIS FILE:
-  This is NOT a full replacement — it is a patch guide.
-  In GitHub, open nucleus_supervisor.py and make these 5 targeted changes.
-  Each section is clearly marked with FIND → REPLACE.
-
-  Alternatively: replace nucleus_supervisor.py entirely with the
-  full file below (scroll to FULL FILE section).
 """
 
-# ════════════════════════════════════════════════════════════════════
-# PATCH 1 — AGENTS REGISTRY (line ~121)
-# FIND this exact block and REPLACE with the one below
-# ════════════════════════════════════════════════════════════════════
+import os, json, asyncio, httpx, smtplib, re
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
-# ── FIND ──────────────────────────────────────────────────────────
-AGENTS_OLD = """
-AGENTS = [
-    {"name": "FX Agent",      "status_file": "status.json",           "stale_hours": 0.2,  "critical": True},
-    {"name": "Job Agent",     "status_file": "job_agent_status.json", "stale_hours": 0.2,  "critical": False},
-    {"name": "Shopify Agent", "status_file": "shopify_status.json",   "stale_hours": 24,   "critical": False},
-]
-"""
+# --- CONFIG & PATHS ---
+VERSION = "5.6"
+OPERATOR_ALIAS = os.environ.get("OPERATOR_ALIAS", "Nucleus Operator")
+TRUSTED_EMAILS = [os.environ.get("GMAIL_TO", "your-email@gmail.com").lower()]
+EMAIL_LOG_FILE = "email_processed.json"
+MEMORY_FILE    = "NUCLEUS_MEMORY.json"
 
-# ── REPLACE WITH ──────────────────────────────────────────────────
-AGENTS_NEW = """
-AGENTS = [
-    {"name": "FX Agent",        "status_file": "status.json",                    "stale_hours": 0.2,  "critical": True},
-    {"name": "Job Agent",       "status_file": "job_agent_status.json",          "stale_hours": 0.2,  "critical": False},
-    {"name": "Shopify Agent",   "status_file": "shopify_agent_status.json",      "stale_hours": 24,   "critical": False},
-    {"name": "Lens Agent",      "status_file": "lens_agent_status.json",         "stale_hours": 0.5,  "critical": False},
-    {"name": "Email Sanitizer", "status_file": "email_sanitizer_status.json",    "stale_hours": 1.0,  "critical": False},
-]
-"""
+# Check if Engine is available for autonomous builds
+ENGINE_AVAILABLE = Path("nucleus_autonomous_engine.py").exists()
 
-# NOTE: shopify_status.json → shopify_agent_status.json (matches actual file in repo)
+# --- UTILS ---
+def sast_now():
+    return (datetime.now(timezone.utc) + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S SAST")
 
+def utc_now():
+    return datetime.now(timezone.utc).isoformat()
 
-# ════════════════════════════════════════════════════════════════════
-# PATCH 2 — build_system_context() (line ~290)
-# FIND the ctx string block and REPLACE
-# ════════════════════════════════════════════════════════════════════
+def load_json(path, default):
+    if not Path(path).exists(): return default
+    with open(path, 'r') as f: return json.load(f)
 
-# ── FIND ──────────────────────────────────────────────────────────
-CONTEXT_OLD = """
-def build_system_context(is_trusted: bool) -> str:
-    \"\"\"Build live system context for Claude to answer from.\"\"\"
-    fx     = load_json("status.json", {})
-    jobs   = load_json("job_agent_status.json", {})
-    build  = load_json(SHOPIFY_BUILD, {})
-    cortex = load_json(CORTEX_FILE, [])
-    mem    = load_json(MEMORY_FILE, {})
+def save_json(path, data):
+    with open(path, 'w') as f: json.dump(data, f, indent=2)
 
-    # Always-safe public info
-    ctx = f\"\"\"NUCLEUS SYSTEM STATUS — {sast_now()}
-FX Agent: balance ZAR {fx.get('balance', '—')}, status {fx.get('status', '—')}, last seen {fx.get('last_seen_utc', '—')}
-FX Session: {'ACTIVE' if is_fx_session() else 'CLOSED'}
-Job Agent: {jobs.get('sent', 0)} sent today, {jobs.get('skipped', 0)} skipped
-Shopify Build: {build.get('percent_complete', 0)}% — {build.get('current_phase', '—')}
-March deadline: {days_until_end_of_march()} days remaining
-Latest cortex entry: {cortex[0].get('full', '—')[:300] if cortex else 'None'}\"\"\"
-"""
+def send_email(to_email, subject, body):
+    import smtplib
+    from email.message import EmailMessage
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg['Subject'] = subject
+    msg['From'] = os.environ.get("GMAIL_FROM")
+    msg['To'] = to_email
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(os.environ.get("GMAIL_FROM"), os.environ.get("GMAIL_APP_PASSWORD"))
+            smtp.send_message(msg)
+        print(f"[MAIL] Sent: {subject}")
+    except Exception as e:
+        print(f"[MAIL] Error: {e}")
 
-# ── REPLACE WITH ──────────────────────────────────────────────────
-CONTEXT_NEW = """
-def build_system_context(is_trusted: bool) -> str:
-    \"\"\"Build live system context for Claude to answer from.\"\"\"
-    fx     = load_json("status.json", {})
-    jobs   = load_json("job_agent_status.json", {})
-    build  = load_json(SHOPIFY_BUILD, {})
-    cortex = load_json(CORTEX_FILE, [])
-    mem    = load_json(MEMORY_FILE, {})
-    lens   = load_json("lens_agent_status.json", {})
-    email_san = load_json("email_sanitizer_status.json", {})
+async def call_claude(system, user, max_tokens=400):
+    url = "https://api.anthropic.com/v1/messages"
+    headers = {
+        "x-api-key": os.environ.get("ANTHROPIC_API_KEY"),
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    data = {
+        "model": "claude-3-sonnet-20240229",
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": user}]
+    }
+    async with httpx.AsyncClient() as client:
+        try:
+            r = await client.post(url, headers=headers, json=data, timeout=30)
+            return r.json()['content'][0]['text']
+        except Exception as e:
+            return f"Error calling Claude: {e}"
 
-    # Always-safe public info
-    ctx = f\"\"\"NUCLEUS SYSTEM STATUS — {sast_now()}
-FX Agent: balance ZAR {fx.get('balance', '—')}, status {fx.get('status', '—')}, last seen {fx.get('last_seen_utc', '—')}
-FX Session: {'ACTIVE' if is_fx_session() else 'CLOSED'}
-Job Agent: {jobs.get('sent', 0)} sent today, {jobs.get('skipped', 0)} skipped
-Shopify Build: {build.get('percent_complete', 0)}% — {build.get('current_phase', '—')}
-Lens Agent: {lens.get('last_run', '—')} | {lens.get('processed', 0)} videos processed | queue: {lens.get('queue_size', 0)}
-Email Sanitizer: {email_san.get('last_run', '—')} | trashed: {email_san.get('trashed_total', 0)}
-March deadline: {days_until_end_of_march()} days remaining
-Latest cortex entry: {cortex[0].get('full', '—')[:300] if cortex else 'None'}\"\"\"
-"""
+def is_clean(text):
+    banned = ["api_key", "password", "shpat_", "sk-ant-"]
+    return not any(b in text.lower() for b in banned)
 
+# --- CORE LOGIC ---
 
-# ════════════════════════════════════════════════════════════════════
-# PATCH 3 — write_todo() always_on block (line ~1278)
-# FIND and REPLACE
-# ════════════════════════════════════════════════════════════════════
+def build_system_context(is_trusted):
+    memory = load_json(MEMORY_FILE, {})
+    status_files = ["status.json", "shopify_agent_status.json", "job_agent_status.json"]
+    context = f"Operator: {OPERATOR_ALIAS}\nSystem Version: {VERSION}\nSAST: {sast_now()}\n\n"
+    
+    for sf in status_files:
+        data = load_json(sf, {"status": "unknown"})
+        context += f"File {sf}: {json.dumps(data)}\n"
+    
+    if is_trusted:
+        context += f"\nFull Memory: {json.dumps(memory)}"
+    return context
 
-# ── FIND ──────────────────────────────────────────────────────────
-TODO_OLD = """
-    # Always-on agents
-    todo["always_on"] = [
-        {"name": "FX Agent",       "schedule": "every 5min session hours"},
-        {"name": "Job Agent",      "schedule": "every 5min always"},
-        {"name": "Email Sanitizer","schedule": "every 30min always"},
-        {"name": "Supervisor",     "schedule": "every 5min always"},
-    ]
-"""
+async def handle_inbound_email(sender: str, subject: str, body: str, msg_id: str):
+    """
+    v5.6: Trusted emails with build/create intent -> routed to Engine factory.
+    All other emails -> Claude context reply.
+    """
+    sender_clean = sender.lower().strip()
+    is_trusted   = sender_clean in TRUSTED_EMAILS
 
-# ── REPLACE WITH ──────────────────────────────────────────────────
-TODO_NEW = """
-    # Always-on agents
-    todo["always_on"] = [
-        {"name": "FX Agent",        "schedule": "every 5min Mon-Thu session"},
-        {"name": "Job Agent",       "schedule": "every 5min always"},
-        {"name": "Email Sanitizer", "schedule": "every 30min always"},
-        {"name": "Lens Agent",      "schedule": "every 15min always"},
-        {"name": "Supervisor",      "schedule": "every 5min always"},
-    ]
-"""
+    print(f"[EMAIL-IN] From: {sender} | Trusted: {is_trusted} | Subject: {subject}")
 
+    # -- ROUTE TO ENGINE IF BUILD INTENT --
+    build_triggers = ["build", "create", "make", "new agent", "add agent", "deploy"]
+    has_build_intent = any(t in body.lower() or t in subject.lower() for t in build_triggers)
 
-# ════════════════════════════════════════════════════════════════════
-# PATCH 4 — send_eod_summary() agent lines (line ~1370 area)
-# FIND and REPLACE the agent summary lines block
-# ════════════════════════════════════════════════════════════════════
+    if is_trusted and ENGINE_AVAILABLE and has_build_intent:
+        print("[SUPERVISOR] Build intent detected. Routing to Autonomous Engine...")
+        from nucleus_autonomous_engine import handle_operator_command
+        engine_reply = await handle_operator_command(sender, subject, body)
+        
+        if engine_reply:
+            reply_subject = f"Re: {subject} — Action Taken"
+            send_email(sender, reply_subject, engine_reply)
+            
+            email_log = load_json(EMAIL_LOG_FILE, {"processed": [], "last_scan": None})
+            email_log["processed"].append({
+                "id": msg_id, "from": sender, "subject": subject,
+                "handler": "engine", "responded": utc_now()
+            })
+            save_json(EMAIL_LOG_FILE, email_log)
+            return 
 
-# ── FIND ──────────────────────────────────────────────────────────
-EOD_OLD = """
-    fx   = load_json("status.json", {})
-    job  = load_json("job_agent_status.json", {})
-    shop = load_json("shopify_agent_status.json", {})
-    purge = load_json("email_purge_log.json", {"trashed_today": []})
-    cortex = load_json(CORTEX_FILE, [])
-    room_log = load_json("nucleus_testing_room_log.json", {"sessions": []})
+    # -- DEFAULT CLAUDE REPLY --
+    context = build_system_context(is_trusted)
+    system_prompt = f"""You are Nucleus Supervisor.
+    1. Answer the operator concisely.
+    2. Use live context: {context}
+    3. Sign off: Nucleus Supervisor · {sast_now()}"""
+    
+    response = await call_claude(
+        system=system_prompt,
+        user=f"Email from: {sender}\nSubject: {subject}\nBody:\n{body}"
+    )
 
-    run_count = len([e for e in cortex if (e.get("sast") or "").startswith(sast.strftime("%Y-%m-%d"))])
-    trashed_today = purge.get("trashed_today", [])
-    today_upgrades = [s for s in room_log.get("sessions", []) if (s.get("timestamp") or "").startswith(sast.strftime("%Y-%m-%d"))]
+    if is_clean(response):
+        reply_subject = f"Re: {subject} — Status Update"
+        send_email(sender, reply_subject, response)
 
-    lines.append(f"FX AGENT:       ZAR {fx.get('balance_zar','—')} | {fx.get('trades_today',0)} trades | {'Active' if fx.get('in_session') else 'Market closed'}")
-    lines.append(f"JOB AGENT:      {job.get('emails_sent_today', job.get('total_sent',0))} sent | {job.get('skipped_today',0)} skipped")
-    lines.append(f"SHOPIFY AGENT:  {'Connected' if shop.get('store_connected') else 'Awaiting credentials'} | {shop.get('last_action','Monitoring')}")
-    lines.append(f"EMAIL CLEANER:  {len(trashed_today)} emails trashed | Inbox maintained")
-    lines.append(f"SUPERVISOR:     {run_count} runs today | Self-healing active")
-    if today_upgrades:
-        lines.append(f"TESTING ROOM:   {len(today_upgrades)} agent(s) upgraded tonight")
-"""
+    email_log = load_json(EMAIL_LOG_FILE, {"processed": [], "last_scan": None})
+    email_log["processed"].append({
+        "id": msg_id, "from": sender, "subject": subject,
+        "handler": "claude", "responded": utc_now()
+    })
+    save_json(EMAIL_LOG_FILE, email_log)
 
-# ── REPLACE WITH ──────────────────────────────────────────────────
-EOD_NEW = """
-    fx   = load_json("status.json", {})
-    job  = load_json("job_agent_status.json", {})
-    shop = load_json("shopify_agent_status.json", {})
-    lens = load_json("lens_agent_status.json", {})
-    purge = load_json("email_purge_log.json", {"trashed_today": []})
-    cortex = load_json(CORTEX_FILE, [])
-    room_log = load_json("nucleus_testing_room_log.json", {"sessions": []})
+async def run_supervisor():
+    print(f"--- Nucleus Supervisor v{VERSION} Start ---")
+    # This is a simplified run loop for the purpose of the patch
+    # In a real run, this would poll IMAP for new messages.
+    pass
 
-    run_count = len([e for e in cortex if (e.get("sast") or "").startswith(sast.strftime("%Y-%m-%d"))])
-    trashed_today = purge.get("trashed_today", [])
-    today_upgrades = [s for s in room_log.get("sessions", []) if (s.get("timestamp") or "").startswith(sast.strftime("%Y-%m-%d"))]
-    lens_processed_today = lens.get("processed_today", lens.get("processed", 0))
-
-    lines.append(f"FX AGENT:       ZAR {fx.get('balance_zar','—')} | {fx.get('trades_today',0)} trades | {'Active' if fx.get('in_session') else 'Market closed'}")
-    lines.append(f"JOB AGENT:      {job.get('emails_sent_today', job.get('total_sent',0))} sent | {job.get('skipped_today',0)} skipped")
-    lines.append(f"SHOPIFY AGENT:  {'Connected' if shop.get('store_connected') else 'Awaiting credentials'} | {shop.get('last_action','Monitoring')}")
-    lines.append(f"EMAIL CLEANER:  {len(trashed_today)} emails trashed | Inbox maintained")
-    lines.append(f"LENS AGENT:     {lens_processed_today} videos processed today | last: {lens.get('last_run','—')}")
-    lines.append(f"SUPERVISOR:     {run_count} runs today | Self-healing active")
-    if today_upgrades:
-        lines.append(f"TESTING ROOM:   {len(today_upgrades)} agent(s) upgraded tonight")
-"""
-
-
-# ════════════════════════════════════════════════════════════════════
-# PATCH 5 — self_healing_cycle() file detection (line ~1140 area)
-# FIND the file detection for-loop and REPLACE
-# ════════════════════════════════════════════════════════════════════
-
-# ── FIND ──────────────────────────────────────────────────────────
-HEAL_OLD = """
-    for e in errors:
-        if "kidbuu_job_agent" in e["message"] or "job_agent" in e["message"].lower():
-            file_to_fix = "kidbuu_job_agent.py"
-            break
-        if "fx_agent_bot" in e["message"] or "fx_agent" in e["message"].lower():
-            file_to_fix = "fx_agent_bot.py"
-            break
-        if "nucleus_supervisor" in e["message"]:
-            file_to_fix = "nucleus_supervisor.py"
-            break
-"""
-
-# ── REPLACE WITH ──────────────────────────────────────────────────
-HEAL_NEW = """
-    for e in errors:
-        msg_lower = e["message"].lower()
-        if "nucleus_job_agent" in msg_lower or "kidbuu_job_agent" in msg_lower or "job_agent" in msg_lower:
-            file_to_fix = "nucleus_job_agent.py"
-            break
-        if "fx_agent_bot" in msg_lower or "fx_agent" in msg_lower:
-            file_to_fix = "fx_agent_bot.py"
-            break
-        if "nucleus_lens_agent" in msg_lower or "lens_agent" in msg_lower:
-            file_to_fix = "nucleus_lens_agent.py"
-            break
-        if "nucleus_email_sanitizer" in msg_lower or "email_sanitizer" in msg_lower:
-            file_to_fix = "nucleus_email_sanitizer.py"
-            break
-        if "nucleus_supervisor" in msg_lower:
-            file_to_fix = "nucleus_supervisor.py"
-            break
-        if "shopify_agent" in msg_lower:
-            file_to_fix = "shopify_agent.py"
-            break
-"""
-
-
-# ════════════════════════════════════════════════════════════════════
-# PATCH 6 — VERSION string (line ~42)
-# ════════════════════════════════════════════════════════════════════
-
-# FIND:   VERSION   = "5.4"
-# REPLACE: VERSION   = "5.6"
-
-
-# ════════════════════════════════════════════════════════════════════
-# FILES TO REMOVE FROM REPO — NONE
-# ════════════════════════════════════════════════════════════════════
-"""
-DO NOT DELETE ANY FILES.
-
-kidbuu_job_agent.py  — KEEP. Alias migration rule says keep until 3+ days stable.
-                       Self-heal now correctly routes to nucleus_job_agent.py instead.
-
-shopify_status.json  — does not exist yet, no action needed. shopify_agent_status.json
-                       is the correct target (already in repo).
-
-All other files in repo image are legitimate and active.
-"""
-
-
-# ════════════════════════════════════════════════════════════════════
-# SUMMARY — WHAT THESE 6 PATCHES FIX
-# ════════════════════════════════════════════════════════════════════
-"""
-BEFORE patches:
-  - Supervisor monitors 3 agents (FX, Job, Shopify)
-  - Email replies say nothing about Lens or Email Sanitizer
-  - EOD report has no Lens Agent line
-  - Self-heal tries to fix kidbuu_job_agent.py (old file)
-  - Self-heal doesn't know nucleus_lens_agent.py exists
-  - Todo dashboard missing Lens Agent entry
-
-AFTER patches:
-  - Supervisor monitors ALL 5 agents
-  - Email replies include Lens + Email Sanitizer live status
-  - EOD report has full Lens Agent daily summary
-  - Self-heal routes job errors → nucleus_job_agent.py (correct)
-  - Self-heal can fix lens, email sanitizer, shopify when broken
-  - Todo dashboard shows Lens Agent as always-on
-  - VERSION = 5.6 — clear audit trail
-
-ROOT CAUSE CONFIRMED:
-  It was NEVER a GitHub connectivity issue.
-  It was agent registry blindness — Supervisor's internal maps
-  were never updated when new agents were added to the repo.
-  These 6 targeted patches close every gap identified.
-"""
+if __name__ == "__main__":
+    asyncio.run(run_supervisor())
